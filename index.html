@@ -307,17 +307,17 @@ const DEF_MATERIALS = [
  ["Tubería EMT","emtu12",'Unión EMT ½"',"UN",1600,"acc","",0,0],
  ["Tubería EMT","emtt12",'Terminal EMT ½"',"UN",1500,"acc","",0,0],
  ["Tubería EMT","emtc12",'Curva EMT ½" 90°',"UN",9300,"acc","",0,0],
- ["Tubería EMT","emtg12",'Grapa doble ala ½"',"UN",4900,"acc","",0,0],
+ ["Tubería EMT","emtg12",'Grapa doble ojo ½"',"UN",4900,"acc","",0,0],
  ["Tubería EMT","emt34",'Tubo EMT ¾" (tramo 3 m)',"UN",18000,"emt","emt",3,0],
  ["Tubería EMT","emtu34",'Unión EMT ¾"',"UN",800,"acc","",0,0],
  ["Tubería EMT","emtt34",'Terminal EMT ¾"',"UN",2100,"acc","",0,0],
  ["Tubería EMT","emtc34",'Curva EMT ¾" 90°',"UN",14600,"acc","",0,0],
- ["Tubería EMT","emtg34",'Grapa doble ala ¾"',"UN",6100,"acc","",0,0],
+ ["Tubería EMT","emtg34",'Grapa doble ojo ¾"',"UN",6100,"acc","",0,0],
  ["Tubería EMT","emt1",'Tubo EMT 1" (tramo 3 m)',"UN",31900,"emt","emt",3,0],
  ["Tubería EMT","emtu1",'Unión EMT 1"',"UN",2600,"acc","",0,0],
  ["Tubería EMT","emtt1",'Terminal EMT 1"',"UN",2800,"acc","",0,0],
  ["Tubería EMT","emtc1",'Curva EMT 1" 90°',"UN",27100,"acc","",0,0],
- ["Tubería EMT","emtg1",'Grapa doble ala 1"',"UN",5800,"acc","",0,0],
+ ["Tubería EMT","emtg1",'Grapa doble ojo 1"',"UN",5800,"acc","",0,0],
  ["Tubería PVC","pvc12",'Tubo PVC SCH 40 ½" (tramo 3 m)',"UN",0,"pvc","pvc",3,0],
  ["Tubería PVC","pvc34",'Tubo PVC SCH 40 ¾" (tramo 3 m)',"UN",0,"pvc","pvc",3,0],
  ["Tubería PVC","pvc1",'Tubo PVC SCH 40 1" (tramo 3 m) — troncal',"UN",0,"pvc","pvc",3,0],
@@ -411,27 +411,52 @@ const DEF_PROFILES = [
  P_("rel","Relevador AX PRO",[["@UTP",20],["chazo14",2],["tgol",2]],1.5,90000),
  P_("intercom","Terminal smart intercom facial",[["@UTP",40],["dup216",30],["rj45",2],["chazo14",4],["tgol",4]],3,80000),
  P_("ups","UPS / respaldo eléctrico",[["enc214",30],["brk20",1]],3,35000),
- P_("porton","Automatización portón vehicular",[["@UTP",50],["enc214",30],["chazo14",4],["tgol",4]],6,80000)
+ P_("porton","Automatización portón vehicular",[["@UTP",50],["enc214",30],["chazo14",4],["tgol",4]],6,80000),
+ P_("router","Router / equipo de red",[["pc6",1]],1,30000)
 ];
 
-const R_ = (m,q,n,on=true,note="") => ({m,q,n,on,note});
-const DEF_TUBE_RULES = {
- emt12:[R_("emtu12",1,2),R_("emtt12",2,3),R_("emtc12",1,6),R_("emtg12",2,1),R_("raw5800",1,3),R_("raw2400",1,3,false,"Actívela si usa caja 2400 en ½\"")],
- emt34:[R_("emtu34",1,2),R_("emtt34",2,3),R_("emtc34",1,6),R_("emtg34",2,1),R_("raw5800",1,3),R_("raw2400",1,3,false)],
- emt1:[R_("emtu1",1,2),R_("emtt1",2,3),R_("emtc1",1,6),R_("emtg1",2,1),R_("raw5800",1,3),R_("raw2400",1,3,false)],
- pvc12:[R_("pvcu12",1,2),R_("pvcc12",1,6),R_("pvca12",2,1),R_("raw5800",1,3,false)],
- pvc34:[R_("pvcu34",1,2),R_("pvcc34",1,6),R_("raw5800",1,3,false)],
- pvc1:[R_("pvcc1",1,6)],
- pvc112:[]
+// Actualización de costos · lista de equipos del 25-sep-2026
+const PATCH_0925 = {
+ set:{ c0:{cost:560984,ref:"TL-SG2218"}, c3:{cost:58200,ref:"BV-1013"}, c9:{ref:"KITACCESS600"}, c14:{ref:"SS24A2EM-ES"},
+  c15:{ref:"LY-CM200"}, c18:{ref:"LY-CM200"}, c17:{ref:"SF-2012",cost:4919}, c20:{ref:"SF-2012",cost:4919}, c21:{ref:"R192605"},
+  c24:{ref:"AXCSS-KIT5A"}, c25:{ref:"AXCSS-DC12V3A",cost:15000}, c27:{cost:120000},
+  n4:{cost:1600000,name:"Kit de brazo y controladora para portón abatible de 1 hoja",spec:"3 m / 300 kg / uso residencial"},
+  c38:{cost:165000}, c43:{cost:49000}, c45:{cost:100000,ref:"DS-PDBG8-EG2"}, c46:{cost:224473}, c48:{cost:250000} },
+ add:[
+  {id:"u1",sys:"CONTROL DE ACCESO",ref:"N300",name:"Router Tenda N300 (internet y voz)",spec:"Internet and Voice service on one router",un:"UND",cost:420000,profile:"router"},
+  {id:"u2",sys:"CCTV",ref:"DS-7616NXI-K2/16P(D)",name:"NVR 12 MP (4K) / 16 canales IP / 16 puertos PoE+",spec:"Reconocimiento facial · AcuSense · 2 bahías de disco · PoE 300 m modo extendido · HDMI 4K · alarmas I/O",un:"UND",cost:990000,profile:"nvr"}]
 };
+
+// ===== Canalización: un kit por familia (EMT / PVC) que se aplica a la medida elegida =====
+// cantidad = grupos de N tubos × cantidad (grupos completos o cualquier fracción, según el accesorio) · la fijación (chazos y tornillos) se suma por cada accesorio
+const K = (type,label,q,n,on=true,fc=0,ft=0,m="",r="abajo") => ({type,label,q,n,on,fc,ft,m,r}); // r: "abajo" = solo grupos completos · "arriba" = cualquier fracción cuenta
+const DEF_TUBE_KITS = {
+ emt:[K("grapa","Grapa doble ojo",2,1,true,2,2),K("union","Unión",1,2),K("terminal","Terminal",2,3),K("caja","Caja Rawelt 5800 con tapa",1,3,true,4,4,"raw5800"),K("curva","Curva 90°",1,6),K("caja2","Caja Rawelt 2400 rectangular",1,3,false,4,4,"raw2400")],
+ pvc:[K("grapa","Abrazadera plástica",2,1,true,1,0),K("union","Unión",1,2),K("curva","Codo 90°",1,6),K("caja","Caja Rawelt 5800 con tapa",1,3,false,4,4,"raw5800")]
+};
+const DEF_TUBE_SIZES = {
+ emt12:{grapa:"emtg12",union:"emtu12",terminal:"emtt12",curva:"emtc12"},
+ emt34:{grapa:"emtg34",union:"emtu34",terminal:"emtt34",curva:"emtc34"},
+ emt1:{grapa:"emtg1",union:"emtu1",terminal:"emtt1",curva:"emtc1"},
+ pvc12:{grapa:"pvca12",union:"pvcu12",curva:"pvcc12"}, pvc34:{union:"pvcu34",curva:"pvcc34"}, pvc1:{curva:"pvcc1"}, pvc112:{}
+};
+const DEF_TUBE_FIX = {chazo:"chazo14", tornillo:"tgol"};
+const tubeShort = m => (m?.name||"").replace(/\s*\(.*?\)\s*/g," ").replace(/—.*$/,"").trim();
+function kitCalc(tid, n){
+ const m = S.materials.find(x=>x.id===tid); const kit = (S.tubeKits||{})[m?.inst] || [];
+ const rows = []; let ch = 0, to = 0, missing = [];
+ kit.forEach((k,j)=>{
+  const mat = k.m || (S.tubeSizes[tid]||{})[k.type] || "";
+  const g = n / (+k.n||1), grupos = k.r==="arriba" ? ceil(g) : Math.floor(g + 1e-9);
+  const q = (k.on && n>0 && +k.n>0) ? grupos * (+k.q||0) : 0;
+  const c = q*(+k.fc||0), t = q*(+k.ft||0); ch += c; to += t;
+  if (q && !mat) missing.push(k.label);
+  rows.push({j, k, mat, q, c, t});
+ });
+ return {rows, ch, to, missing};
+}
 const D_ = (src,n,m,q,on=true,note="") => ({src,n,m,q,on,note});
 const DEF_DERIVED = [
- D_("emtg12",1,"chazo14",2,true,"Cada grapa: 2 chazos"),D_("emtg12",1,"tgol",2,true,"Cada grapa: 2 tornillos"),
- D_("emtg34",1,"chazo14",2),D_("emtg34",1,"tgol",2),
- D_("emtg1",1,"chazo14",2),D_("emtg1",1,"tgol",2),
- D_("raw5800",1,"chazo14",4,true,"Fijación de caja"),D_("raw5800",1,"tgol",4),
- D_("raw2400",1,"chazo14",2),D_("raw2400",1,"tgol",2),
- D_("pvca12",1,"chazo14",1),
  D_("raw5800",1,"tapa1010",1,false,"Actívela si la caja 5800 se compra sin tapa"),
  D_("raw2400",1,"taparect",1,true,"Tapa de la caja rectangular"),
  D_("@EQ",20,"cint15",1,false,"Sugerida: 1 bolsa por cada 20 equipos"),
@@ -487,7 +512,7 @@ function defaults(){
  const p = newProject();
  return {v:2, brand:clone(DEF_BRAND), texts:clone(DEF_TEXTS), systems:["CONTROL DE ACCESO","CCTV","ALARMA","OBRAS Y SERVICIOS"],
   catalog:clone(SEED_CATALOG), materials:clone(DEF_MATERIALS), reserves:clone(DEF_RESERVES), profiles:clone(DEF_PROFILES),
-  tubeRules:clone(DEF_TUBE_RULES), derived:clone(DEF_DERIVED), linear:clone(DEF_LINEAR), projects:{[p.id]:p}, active:p.id};
+  tubeKits:clone(DEF_TUBE_KITS), tubeSizes:clone(DEF_TUBE_SIZES), tubeFix:clone(DEF_TUBE_FIX), derived:clone(DEF_DERIVED), patches:[], linear:clone(DEF_LINEAR), projects:{[p.id]:p}, active:p.id};
 }
 
 /* ---------- estado ---------- */
@@ -523,6 +548,22 @@ async function load(){
  DISK.fresh = fresh;
 }
 function upgrade(st){
+ st.patches ||= [];
+ // materiales y reglas de equipo nuevas (sin tocar las que el usuario ya editó)
+ DEF_MATERIALS.forEach((m,i)=>{ if (!st.materials.some(x=>x.id===m.id)){ const prev = DEF_MATERIALS[i-1]; const at = prev ? st.materials.findIndex(x=>x.id===prev.id)+1 : st.materials.length; st.materials.splice(at>0?at:st.materials.length, 0, clone(m)); } });
+ st.materials.forEach(m=>{ m.name = String(m.name).replace("Grapa doble ala","Grapa doble ojo"); });
+ DEF_PROFILES.forEach(p=>{ if (!st.profiles.some(x=>x.id===p.id)) st.profiles.push(clone(p)); });
+ // canalización: de reglas por tubo a kit por familia
+ if (!st.tubeKits){
+  st.tubeKits = clone(DEF_TUBE_KITS); /* nuevo */ st.tubeSizes = clone(DEF_TUBE_SIZES); st.tubeFix = clone(DEF_TUBE_FIX); delete st.tubeRules;
+  st.derived = (st.derived||[]).filter(d=>!(["chazo14","tgol"].includes(d.m) && /^(emtg|raw|pvca)/.test(d.src)));
+ }
+ Object.values(st.tubeKits).forEach(ks=>ks.forEach(k=>{ k.r ||= "abajo"; }));
+ if (!st.patches.includes("precios-2026-09-25")){
+  st.catalog.forEach(c=>{ const p = PATCH_0925.set[c.id]; if (p) Object.assign(c, p); });
+  PATCH_0925.add.forEach(c=>{ if (!st.catalog.some(x=>x.id===c.id || x.ref===c.ref)) st.catalog.push(clone(c)); });
+  st.patches.push("precios-2026-09-25");
+ }
  Object.values(st.projects).forEach(p=>{ p.status ||= "borrador"; p.history ||= []; p.next ||= ""; p.follow ||= ""; p.updated ||= Date.now(); p.cpct ||= {}; });
 }
 let saveT, dirty = {cfg:true, proj:new Set()};
@@ -650,10 +691,14 @@ function compute(P = proj()){
   if (count) add(m.id, count, "Canalización "+num(meters)+" m ÷ "+num(m.len)+" m");
  });
  R.tubeTotal = Object.values(tubes).reduce((a,t)=>a+t.count,0);
- R.tubeRuleRes = {};
- Object.entries(S.tubeRules).forEach(([tid, rules])=>{
-  const n = tubes[tid]?.count || 0;
-  rules.forEach((r,j)=>{ const q = (r.on && n && +r.n>0) ? ceil(n / r.n) * (+r.q||0) : 0; R.tubeRuleRes[tid+"."+j] = q; if (q) add(r.m, q, (mById[tid]?.name||tid).replace(/\(.*\)/,"").trim()+": "+num(r.q)+" c/"+num(r.n)+" tubo(s)"); });
+ R.kitMissing = [];
+ Object.entries(tubes).forEach(([tid, t])=>{
+  if (!t.count) return;
+  const kc = kitCalc(tid, t.count), nm = tubeShort(mById[tid]);
+  kc.rows.forEach(r=>{ if (r.q && r.mat) add(r.mat, r.q, nm+": "+r.k.label.toLowerCase()+" "+num(r.k.q)+" por cada "+num(r.k.n)+" tubo(s)"); });
+  if (kc.ch) add(S.tubeFix.chazo, kc.ch, nm+": fijación de accesorios");
+  if (kc.to) add(S.tubeFix.tornillo, kc.to, nm+": fijación de accesorios");
+  kc.missing.forEach(x=>R.kitMissing.push(nm+" · "+x));
  });
  R.derivedRes = [];
  S.derived.forEach((d,j)=>{
@@ -759,6 +804,7 @@ function audit(P, R){
  const last = R.amort[R.amort.length-1];
  add(!last || Math.abs(last.fin) < 1 ? "ok":"crit","Tabla de amortización cierra en cero", last? money(last.fin) : "—", "Revise tasa y número de cuotas");
  add("ok","Financiación excluye mantenimiento y monitoreo", "Base: "+money(R.finBase), "Corregido frente al Excel");
+ add(R.kitMissing.length?"warn":"ok","Accesorios de tubería con material asignado para cada medida", R.kitMissing.length? R.kitMissing.join(", ") : "Completo", "Asigne el material en Reglas → Canalización");
  const M = R.svc;
  if (M.base>0){
   add(M.solo.op>0?"ok":"crit","Monitoreo solo servicio: utilidad operacional", money(M.solo.op)+" · "+pct(M.solo.opPct), "Suba la tarifa por unidad o revise los costos mensuales");
@@ -1053,21 +1099,38 @@ V.reglas = () => {
    <div class="row"><button class="btn sm danger" data-act="delProf" data-i="${i}" id="delProf_${i}">Eliminar regla</button><span class="small muted">Los equipos del catálogo que usen esta regla quedarán sin regla.</span></div>
   </div></details>`;
  }).join("");
- const tubes = Object.keys(S.tubeRules).map(tid=>{
-  const m = R.mById[tid]; if (!m) return ""; const n = R.tubes[tid]?.count||0;
-  const rows = S.tubeRules[tid].map((r,j)=>{ const b = "S.tubeRules."+tid+"."+j; return `<tr class="${r.on?"":"dim"}"><td>${inp(b+".on","b")}</td><td>${selMat(b+".m")}</td><td class="n">${inp(b+".q","n",'class="w60"')}</td><td class="n">${inp(b+".n","n",'class="w60"')}</td><td class="n"><b>${num(R.tubeRuleRes[tid+"."+j]||0)}</b></td><td>${inp(b+".note","t",'placeholder="Nota"')}</td><td><button class="x" data-act="delTR" data-t="${tid}" data-j="${j}">×</button></td></tr>`; }).join("");
-  return `<div class="panel"><div class="ph"><h2 style="font-size:14px">${esc(m.name)}</h2><span class="hint">${num(n)} tubos en el proyecto · tramo ${inp("S.materials."+S.materials.indexOf(m)+".len","n",'class="w60" style="width:60px;display:inline-block"')} m</span></div>
-  <div class="tw"><table class="t"><thead><tr><th>Activa</th><th>Accesorio</th><th class="n">Cantidad</th><th class="n">Cada N tubos</th><th class="n">Resultado</th><th>Nota</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-  <div class="pb"><button class="btn sm" data-act="addTR" data-t="${tid}">+ Accesorio</button></div></div>`;
- }).join("");
+ const fams = [["emt","EMT (conduit metálico)"],["pvc","PVC SCH 40"]];
+ const matName = id => id ? (R.mById[id]?.name || id) : "";
+ const fixSel = `<div class="grid">${fld("Chazo para fijación", selMat("S.tubeFix.chazo"))}${fld("Tornillo para fijación", selMat("S.tubeFix.tornillo"))}</div>`;
+ const tubes = fams.map(([fam, famName])=>{
+  const kit = S.tubeKits[fam] || [];
+  const sizes = S.materials.filter(m=>+m.len>0 && m.inst===fam);
+  const sim = V._sim && sizes.some(m=>m.id===V._sim) ? V._sim : sizes[0]?.id;
+  const krows = kit.map((k,j)=>{ const b = "S.tubeKits."+fam+"."+j; const sized = !k.m;
+   return `<tr class="${k.on?"":"dim"}"><td>${inp(b+".on","b")}</td><td style="min-width:170px">${inp(b+".label")}</td><td class="n">${inp(b+".q","n",'class="w60"')}</td><td class="n">${inp(b+".n","n",'class="w60"')}</td><td style="min-width:160px">${sel(b+".r", [["abajo","Grupos completos"],["arriba","Cualquier fracción"]])}</td><td class="n">${inp(b+".fc","n",'class="w60"')}</td><td class="n">${inp(b+".ft","n",'class="w60"')}</td><td style="min-width:200px">${sized?`<span class="small muted">Según la medida del tubo ↓</span>`:selMat(b+".m")}</td><td><button class="x" data-act="delKit" data-f="${fam}" data-j="${j}" title="Quitar">×</button></td></tr>`; }).join("");
+  const sizedTypes = kit.filter(k=>!k.m);
+  const srows = sizes.map(m=>{ const t = R.tubes[m.id]||{count:0}; return `<tr><td><b>${esc(tubeShort(m))}</b><div class="src">${num(t.count)} tubos en el proyecto</div></td><td class="n">${inp("S.materials."+S.materials.indexOf(m)+".len","n",'class="w60"')} m</td>${sizedTypes.map(k=>`<td style="min-width:150px">${selMat("S.tubeSizes."+m.id+"."+k.type, [["","— No aplica —"]])}</td>`).join("")}</tr>`; }).join("");
+  // simulador
+  const N = [1,2,3,6];
+  const calc = N.map(n=>kitCalc(sim, n));
+  const simRows = kit.map((k,j)=>{ const mat = k.m || (S.tubeSizes[sim]||{})[k.type]; if (!k.on) return ""; return `<tr><td>${esc(k.label)}<div class="src">${mat?esc(matName(mat)):"<span style='color:var(--crit)'>sin material para esta medida</span>"}</div></td>${calc.map(c=>`<td class="n">${num(c.rows[j].q)}</td>`).join("")}</tr>`; }).join("")
+   + `<tr class="sub"><td>${esc(matName(S.tubeFix.chazo))}</td>${calc.map(c=>`<td class="n">${num(c.ch)}</td>`).join("")}</tr><tr class="sub"><td>${esc(matName(S.tubeFix.tornillo))}</td>${calc.map(c=>`<td class="n">${num(c.to)}</td>`).join("")}</tr>`;
+  return `<div class="panel"><div class="ph"><h2>Canalización ${famName}</h2><button class="btn sm" data-act="addKit" data-f="${fam}">+ Accesorio</button></div>
+  <div class="tw"><table class="t"><thead><tr><th>Activo</th><th>Accesorio</th><th class="n">Cantidad</th><th class="n">Cada N tubos</th><th>Redondeo</th><th class="n">Chazos c/u</th><th class="n">Tornillos c/u</th><th>Material</th><th></th></tr></thead><tbody>${krows}</tbody></table></div>
+  <div class="pb"><p class="subh">Material de cada accesorio según la medida</p><p class="small muted" style="margin:0 0 8px">Si el equipo lleva ${esc(sizes[0]?tubeShort(sizes[0]):"")}, todos sus accesorios salen de esa misma medida.</p></div>
+  <div class="tw"><table class="t"><thead><tr><th>Medida</th><th class="n">Tramo</th>${sizedTypes.map(k=>`<th>${esc(k.label)}</th>`).join("")}</tr></thead><tbody>${srows}</tbody></table></div>
+  ${sim?`<div class="pb"><div class="row" style="justify-content:space-between"><p class="subh" style="margin:0">Prueba de la regla</p><div class="seg">${sizes.map(m=>`<button data-act="simTube" data-t="${m.id}" class="${m.id===sim?"on":""}">${esc(tubeShort(m).replace(/^Tubo (EMT|PVC SCH 40) /,""))}</button>`).join("")}</div></div></div>
+  <div class="tw"><table class="t"><thead><tr><th>${esc(tubeShort(R.mById[sim]))}</th>${N.map(n=>`<th class="n">${n} ${n===1?"tubo":"tubos"}</th>`).join("")}</tr></thead><tbody>${simRows}</tbody></table></div>`:""}
+  </div>`;
+ }).join("") + `<div class="panel"><div class="ph"><h2>Materiales de fijación</h2><span class="hint">Se usan para grapas, cajas y demás accesorios de tubería</span></div><div class="pb">${fixSel}</div></div>`;
  const der = S.derived.map((d,j)=>{ const b = "S.derived."+j; return `<tr class="${d.on?"":"dim"}"><td>${inp(b+".on","b")}</td><td>${selMat(b+".src", [["@EQ","Total equipos instalados"],["@TUBOS","Total tubos (todas las medidas)"]])}</td><td class="n">${inp(b+".n","n",'class="w60"')}</td><td>${selMat(b+".m")}</td><td class="n">${inp(b+".q","n",'class="w60"')}</td><td class="n"><b>${num(R.derivedRes[j]||0)}</b></td><td>${inp(b+".note")}</td><td><button class="x" data-act="delDR" data-j="${j}">×</button></td></tr>`; }).join("");
  const res = S.reserves.map((r,i)=>`<tr><td>${inp("S.reserves."+i+".name")}</td><td class="n">${inp("S.reserves."+i+".pct","n",'class="w60"')} %</td><td class="small muted">${S.materials.filter(m=>m.res===r.id).length} materiales</td></tr>`).join("");
  const lin = Object.entries(S.linear).map(([k,L])=>`<tr><td>${esc(L.name)}</td><td class="n">${inp("S.linear."+k+".rate","n")}</td><td class="n">${inp("S.linear."+k+".h","n",'class="w60"')}</td><td class="n">${num(R.lin[k])} m</td></tr>`).join("");
  return `<div class="vhead"><div><h1 class="vt">Reglas técnicas</h1><p class="vsub">Aquí se define la ingeniería: qué consume cada equipo, qué accesorios lleva cada tubo y qué fijación lleva cada accesorio. Cambie un número y todo el proyecto se recalcula.</p></div>
  <div class="row"><button class="btn" data-act="addProf">+ Nueva regla de equipo</button><button class="btn danger" data-act="resetRules" id="btnResetRules">Restaurar reglas originales</button></div></div>
- <div class="note">Fórmula de accesorios de tubería: <b>cantidad = ⌈ tubos ÷ N ⌉ × cantidad</b>. Ejemplo EMT ½": 1 unión cada 2 tubos, 2 terminales cada 3 tubos, 1 curva cada 6 tubos, 2 grapas por tubo, 1 caja Rawelt 5800 cada 3 tubos. Las reglas de fijación se aplican después (cada grapa: 2 chazos + 2 tornillos).</div>
+ <div class="note">Canalización: <b>cantidad = grupos de N tubos × cantidad</b>. Con “grupos completos”, el accesorio aparece al completar el grupo (1 tubo no lleva unión; 2 tubos sí). Con “cualquier fracción”, un tubo suelto ya cuenta como grupo. EMT: cada tubo lleva 2 grapas doble ojo (4 chazos y 4 tornillos de 1/4"); cada 2 tubos, 1 unión; cada 3 tubos, 1 caja Rawelt 5800 y 2 terminales. Chazos y tornillos se suman por cada grapa y cada caja. Todo sale de la misma medida del tubo elegido.</div>
  <div class="panel"><div class="ph"><h2>1 · Reglas por equipo</h2><span class="hint">${S.profiles.length} reglas · abra una para editar materiales, tubería, instalación y mantenimiento</span></div><div class="pb">${profs}</div></div>
- <div class="panel"><div class="ph"><h2>2 · Reglas por tubería</h2><span class="hint">Uniones, terminales, curvas, grapas y cajas Rawelt 5800 / 2400 por tipo de tubo</span></div><div class="pb" style="display:flex;flex-direction:column;gap:12px">${tubes}</div></div>
+ <div style="display:flex;flex-direction:column;gap:12px"><h2 class="vt" style="font-size:20px;margin:6px 0 0">2 · Canalización por tubo</h2>${tubes}</div>
  <div class="panel"><div class="ph"><h2>3 · Reglas de fijación y consumibles</h2><span class="hint">Se aplican en orden, sobre las cantidades ya calculadas</span></div><div class="tw"><table class="t"><thead><tr><th>Activa</th><th>Por cada… (origen)</th><th class="n">Cada N</th><th>Agrega</th><th class="n">Cantidad</th><th class="n">Resultado</th><th>Nota</th><th></th></tr></thead><tbody>${der}</tbody></table></div><div class="pb"><button class="btn sm" data-act="addDR">+ Regla</button></div></div>
  <div class="cols2">
   <div class="panel"><div class="ph"><h2>4 · Reserva / desperdicio</h2></div><div class="tw"><table class="t"><thead><tr><th>Grupo</th><th class="n">%</th><th>Uso</th></tr></thead><tbody>${res}</tbody></table></div></div>
@@ -1375,17 +1438,18 @@ const A = {
  delPM(d){ S.profiles[+d.i].mats.splice(+d.j,1); V._open = S.profiles[+d.i].id; },
  addProf(){ const p = P_(uid("r"),"Nueva regla",[["chazo14",4],["tgol",4]],1,50000); S.profiles.push(p); V._open = p.id; toast("Regla creada al final de la lista"); },
  delProf(d){ arm("delProf_"+d.i, ()=>{ const id = S.profiles[+d.i].id; S.profiles.splice(+d.i,1); S.catalog.forEach(c=>{ if(c.profile===id) c.profile=""; }); commit(); }); return "noop"; },
- addTR(d){ S.tubeRules[d.t].push(R_("raw2400",1,3,true)); },
- delTR(d){ S.tubeRules[d.t].splice(+d.j,1); },
+ addKit(d){ S.tubeKits[d.f].push(K("otro"+Date.now().toString(36),"Accesorio",1,1,true,0,0,"chazo14")); },
+ delKit(d){ S.tubeKits[d.f].splice(+d.j,1); },
+ simTube(d){ V._sim = d.t; },
  addDR(){ S.derived.push(D_("@EQ",10,"cint15",1,true,"")); },
  delDR(d){ S.derived.splice(+d.j,1); },
- resetRules(){ arm("btnResetRules", ()=>{ S.profiles = clone(DEF_PROFILES); S.tubeRules = clone(DEF_TUBE_RULES); S.derived = clone(DEF_DERIVED); S.reserves = clone(DEF_RESERVES); S.linear = clone(DEF_LINEAR); commit(); toast("Reglas restauradas"); }); return "noop"; },
+ resetRules(){ arm("btnResetRules", ()=>{ S.profiles = clone(DEF_PROFILES); S.tubeKits = clone(DEF_TUBE_KITS); S.tubeSizes = clone(DEF_TUBE_SIZES); S.tubeFix = clone(DEF_TUBE_FIX); S.derived = clone(DEF_DERIVED); S.reserves = clone(DEF_RESERVES); S.linear = clone(DEF_LINEAR); commit(); toast("Reglas restauradas"); }); return "noop"; },
  addSC(){ proj().svc.costs.push({n:"Nuevo costo", mode:"fijo", v:0, q:0}); },
  delSC(d){ proj().svc.costs.splice(+d.i,1); },
  addCat(){ S.catalog.unshift({id:uid("c"), sys:S.systems[0], ref:"NUEVO", name:"Nuevo equipo", spec:"", un:"UND", cost:0, profile:""}); V._q=""; },
  delCat(d){ const c = S.catalog[+d.i]; if (Object.values(S.projects).some(p=>p.lines.some(l=>l.cat===c.id))) { toast("Está en uso en una cotización: quítelo primero"); return "noop"; } S.catalog.splice(+d.i,1); },
  addMat(){ S.materials.push({grp:"Consumibles de obra", id:uid("m"), name:"Nuevo material", un:"UN", cost:0, res:"acc", inst:"", len:0, pack:0}); toast("Material agregado al final de la lista"); },
- delMat(d){ const m = S.materials[+d.i]; const used = S.profiles.some(p=>p.mats.some(r=>r.m===m.id)) || Object.values(S.tubeRules).some(rs=>rs.some(r=>r.m===m.id)) || S.derived.some(r=>r.m===m.id||r.src===m.id); if (used) { toast("Se usa en una regla: quítelo de las reglas primero"); return "noop"; } S.materials.splice(+d.i,1); },
+ delMat(d){ const m = S.materials[+d.i]; const used = S.profiles.some(p=>p.mats.some(r=>r.m===m.id)) || Object.values(S.tubeKits).some(ks=>ks.some(k=>k.m===m.id)) || Object.values(S.tubeSizes).some(z=>Object.values(z).includes(m.id)) || Object.values(S.tubeFix).includes(m.id) || S.derived.some(r=>r.m===m.id||r.src===m.id); if (used) { toast("Se usa en una regla: quítelo de las reglas primero"); return "noop"; } S.materials.splice(+d.i,1); },
  clearImg(d){ S.brand[d.k] = ""; },
  resetBrand(){ arm("btnResetBrand", ()=>{ S.brand = clone(DEF_BRAND); S.texts = clone(DEF_TEXTS); commit(); toast("Marca restaurada"); }); return "noop"; }
 };
