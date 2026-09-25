@@ -542,7 +542,8 @@ function defaults(){
  const p = newProject();
  return {v:2, brand:clone(DEF_BRAND), texts:clone(DEF_TEXTS), systems:["CONTROL DE ACCESO","CCTV","ALARMA","OBRAS Y SERVICIOS"],
   catalog:clone(SEED_CATALOG), materials:clone(DEF_MATERIALS), reserves:clone(DEF_RESERVES), profiles:clone(DEF_PROFILES),
-  tubeKits:clone(DEF_TUBE_KITS), tubeSizes:clone(DEF_TUBE_SIZES), tubeFix:clone(DEF_TUBE_FIX), derived:clone(DEF_DERIVED), patches:[], linear:clone(DEF_LINEAR), projects:{[p.id]:p}, active:p.id};
+  tubeKits:clone(DEF_TUBE_KITS), tubeSizes:clone(DEF_TUBE_SIZES), tubeFix:clone(DEF_TUBE_FIX), derived:clone(DEF_DERIVED), patches:[], linear:clone(DEF_LINEAR), projects:{[p.id]:p}, active:p.id,
+  seqStart:{}, seqPrefix:"COT"};
 }
 
 /* ---------- estado ---------- */
@@ -593,6 +594,8 @@ function upgrade(st){
  st.svcModes ||= clone(DEF_SVC_MODES); st.licRules ||= clone(DEF_LIC_RULES); st.licRules.forEach(r=>{ if (r.id==="hipcam" && r.base==="n11"){ r.base = "n12"; r.extra = "n13"; } }); st.brand.wa ||= DEF_WA; st.texts.checklist ||= clone(DEF_CHECKLIST);
  st.svcCosts ||= clone(DEF_PARAMS.svc.costs);
  st.laborBase ||= clone(DEF_PARAMS.labor);
+ delete st.seq; st.seqStart ||= {};
+ st.seqPrefix ||= "COT";
  st.textsDirect ||= clone(DEF_TEXTS_DIRECT); Object.keys(DEF_TEXTS_DIRECT).forEach(k=>{ st.textsDirect[k] ??= clone(DEF_TEXTS_DIRECT[k]); });
  if (!st.patches.includes("tipo-v11")){ Object.values(st.projects).forEach(p=>{ if (!p.kind && ((p.lines||[]).length || p.client)) p.kind = "monitoreo"; }); st.patches.push("tipo-v11"); }
  if (!st.patches.includes("mo-base-v8")){ Object.values(st.projects).forEach(p=>{ if (p.labor && !+p.labor.transport && !+p.labor.imprev){ p.labor.transport = st.laborBase.transport; p.labor.imprev = st.laborBase.imprev; } }); st.patches.push("mo-base-v8"); }
@@ -680,7 +683,11 @@ function renderDiskBadge(){
  else if (DISK.handle) el.innerHTML = `<button class="linkbtn" data-act="reconnect"><span class="dot warn"></span>Reconectar carpeta</button>`;
  else el.innerHTML = `<button class="linkbtn" data-act="pickFolder"><span class="dot crit"></span>Solo en navegador · vincular carpeta</button>`;
 }
-const proj = () => S.projects[S.active];
+// Si no hay proyectos, se usa un proyecto vacío temporal (no se guarda) para que las pantallas globales funcionen
+let BLANK = null;
+const noProjects = () => !S.projects[S.active];
+const proj = () => S.projects[S.active] || (BLANK ||= Object.assign(newProject(), {kind:"directa", _blank:true, num:"—"}));
+const PROJECT_VIEWS = ["proyecto","cotizacion","materiales","costos","monitoreo","resumen","propuesta"];
 function getPath(path){ const [root,...ks] = path.split("."); let o = root==="P" ? proj() : S; for (const k of ks){ if (o==null) return undefined; o = o[k]; } return o; }
 function setPath(path, val){ const [root,...ks] = path.split("."); let o = root==="P" ? proj() : S; for (let i=0;i<ks.length-1;i++){ if (o[ks[i]]==null) o[ks[i]] = {}; o = o[ks[i]]; } const k = ks[ks.length-1]; if (val===undefined) delete o[k]; else o[k] = val; }
 const fid = p => "f_" + p.replace(/[^a-zA-Z0-9]/g, "_");
@@ -943,13 +950,16 @@ let R;
 function render(){
  R = compute();
  applyBrand();
- $("#nav").innerHTML = VIEWS.filter(([k])=>!(k==="monitoreo" && isDirect())).map(([k,l],i)=>`<button data-go="${k}" class="${VIEW===k?"on":""}"><span class="k">${String(i+1).padStart(2,"0")}</span>${l}</button>`).join("");
- $("#projSel").innerHTML = Object.values(S.projects).map(p=>`<option value="${p.id}" ${p.id===S.active?"selected":""}>${esc(p.client||"Sin nombre")} · ${esc(p.num)}</option>`).join("");
+ const empty = noProjects();
+ if (empty && PROJECT_VIEWS.includes(VIEW)) VIEW = "proyectos";
+ $("#nav").innerHTML = VIEWS.filter(([k])=>!(k==="monitoreo" && isDirect()) && !(empty && PROJECT_VIEWS.includes(k))).map(([k,l],i)=>`<button data-go="${k}" class="${VIEW===k?"on":""}"><span class="k">${String(i+1).padStart(2,"0")}</span>${l}</button>`).join("");
+ $("#projSel").innerHTML = empty ? `<option value="">— Sin proyectos —</option>` : Object.values(S.projects).map(p=>`<option value="${p.id}" ${p.id===S.active?"selected":""}>${esc(p.client||"Sin nombre")} · ${esc(p.num)}</option>`).join("");
  renderKpis();
  if (VIEW==="monitoreo" && isDirect()) VIEW = "proyecto";
- $("#view").innerHTML = (V[VIEW]||V.proyecto)() + ((!proj().kind || V._kind) ? kindModal() : "");
+ $("#view").innerHTML = (V[VIEW]||V.proyectos)() + ((!empty && (!proj().kind || V._kind)) ? kindModal() : "");
 }
 function renderKpis(){
+ if (noProjects()){ $("#kpis").innerHTML = `<div class="proj"><b>Sin proyectos</b><span>Cree una cotización nueva para empezar · siguiente: ${esc(peekNum())}</span></div><div class="savebox"><button class="btn pri" data-act="newProj">Nuevo proyecto</button></div>`; return; }
  const P = proj(), ok = R.margin*100 >= (+P.margins.min||0) - 1e-6, un = unsaved(P);
  $("#kpis").innerHTML = `<div class="proj"><b>${esc(P.client||"Proyecto sin nombre")}</b><span>${esc(P.num)} · ${fmtDate(P.date)} · ${num(R.eqUnits)} equipos · <a href="#" data-act="openKind" title="Cambiar tipo de cotización">${esc(KINDS[P.kind]?.short||"Elegir tipo")}</a></span></div>
  <div class="savebox"><button class="btn ${un?"pri":""}" data-act="saveProj" id="btnSave" title="Guarda la cotización y deja una versión en el historial (Ctrl + S)">${un?"Guardar":"Guardado ✓"}</button><span class="small ${un?"warnt":"muted"}">${un?"Cambios sin guardar":(P.savedAt?"Última vez "+fmtDT(P.savedAt):"")}</span></div>
@@ -1019,7 +1029,7 @@ V.proyectos = () => {
   return `<tr class="${p.id===S.active?"cur":""}"><td class="mono">${esc(p.num)}</td><td><a href="#" data-act="openProj" data-id="${p.id}"><b>${esc(p.client||"Sin nombre")}</b></a><div class="src">${esc([p.contact,p.city].filter(Boolean).join(" · "))}</div></td>
   <td>${stPill(p.status)}<div class="src">${esc(KINDS[p.kind]?.short||"")}</div></td><td class="n">${money(s.total)}</td><td class="n">${s.sub?pct(s.margin):"—"}</td><td class="n">${num(s.units)}</td>
   <td class="small">${p.next?`<span class="${late?"late":""}">${fmtDate(p.next)}</span>`:"—"}${p.status==="perdida"&&p.lostReason?`<div class="src">${esc((LOST_REASONS.find(r=>r[0]===p.lostReason)||[,""])[1])}</div>`:""}</td><td class="n">${(p.history||[]).length}</td><td class="small muted">${fmtDT(p.updated||Date.now())}</td>
-  <td class="n"><button class="btn sm" data-act="openProj" data-id="${p.id}">Abrir</button></td></tr>`; }).join("");
+  <td class="n"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm" data-act="openProj" data-id="${p.id}">Abrir</button><button class="btn sm ghost danger" data-act="delProjRow" data-id="${p.id}" id="dp_${p.id}" title="Eliminar proyecto">Eliminar</button></div></td></tr>`; }).join("");
  const diskCard = DISK.ok ? `<div class="note ok"><b>Sus datos están a salvo en la carpeta “${esc(DISK.handle.name)}”.</b> Cada cambio se guarda como archivo JSON por proyecto, con un respaldo completo diario (últimos 30 días). Si borra el historial del navegador, abra la app y elija la misma carpeta para recuperarlo todo.</div>`
   : DISK.handle ? `<div class="note warn"><b>La carpeta de datos está vinculada pero el navegador pide permiso de nuevo.</b> <button class="btn sm pri" data-act="reconnect">Reconectar carpeta</button></div>`
   : `<div class="note crit"><b>Sus datos solo están en este navegador.</b> Si borra el historial o los datos de sitios, se pierden. Vincule una carpeta de su computador (por ejemplo, dentro de OneDrive o Google Drive) y la app guardará allí cada proyecto automáticamente.
@@ -1037,7 +1047,7 @@ V.proyectos = () => {
  ${agendaPanel()}
  <div class="panel"><div class="ph"><h2>Cotizaciones (${all.length})</h2><div class="row"><input type="text" id="projQ" placeholder="Buscar cliente, N°, ciudad…" value="${esc(V._pq||"")}" style="width:220px">
   <select id="projF"><option value="">Todos los estados</option>${STATUS.map(s=>`<option value="${s[0]}" ${f===s[0]?"selected":""}>${s[1]}</option>`).join("")}</select></div></div>
- <div class="tw"><table class="t"><thead><tr><th>N°</th><th>Cliente</th><th>Estado</th><th class="n">Total con IVA</th><th class="n">Margen</th><th class="n">Equipos</th><th>Próxima gestión</th><th class="n">Versiones</th><th>Modificado</th><th></th></tr></thead><tbody>${tr || `<tr><td colspan="10"><div class="empty"><b>No hay proyectos con ese filtro</b></div></td></tr>`}</tbody></table></div></div>`;
+ <div class="tw"><table class="t"><thead><tr><th>N°</th><th>Cliente</th><th>Estado</th><th class="n">Total con IVA</th><th class="n">Margen</th><th class="n">Equipos</th><th>Próxima gestión</th><th class="n">Versiones</th><th>Modificado</th><th></th></tr></thead><tbody>${tr || (all.length ? `<tr><td colspan="10"><div class="empty"><b>No hay proyectos con ese filtro</b></div></td></tr>` : `<tr><td colspan="10"><div class="empty"><b>No hay proyectos</b><span>La siguiente cotización será la ${esc(peekNum())}.</span><button class="btn pri" data-act="newProj">Nuevo proyecto</button></div></td></tr>`)}</tbody></table></div></div>`;
 };
 
 function historyPanel(){
@@ -1469,7 +1479,7 @@ V.marca = () => {
  <div class="cols2">
  <div class="panel"><div class="ph"><h2>Empresa</h2></div><div class="pb grid">
   ${fld("Razón social", inp(b+"company"), "wide")}${fld("Nombre comercial (en textos)", inp(b+"short"))}${fld("NIT", inp(b+"nit"))}
-  ${fld("Eslogan", inp(b+"slogan"))}${fld("Asesor por defecto", inp(b+"by"), "", "Se usa en cada proyecto nuevo.")}${fld("Cargo del asesor", inp(b+"role"))}${fld("Teléfono del asesor", inp(b+"phone"))}${fld("Correo del asesor", inp(b+"advEmail"))}${fld("Dirección", inp(b+"address"))}${fld("Ciudad", inp(b+"city"))}${fld("Teléfono", inp(b+"phone"))}${fld("Correo", inp(b+"email"))}${fld("Sitio web", inp(b+"web"))}
+  ${fld("Eslogan", inp(b+"slogan"))}${fld("Prefijo del consecutivo", inp("S.seqPrefix"), "", "Ej.: COT, DLT, ING.")}${fld("Continuar desde el número (opcional)", inp("S.seqStart."+new Date().getFullYear(),"n",'placeholder="0"'), "", "La próxima cotización será la "+peekNum()+": sigue a la más alta que exista. Si borra la última, ese número se vuelve a usar. Use este campo solo para arrancar después de una numeración anterior.")}${fld("Asesor por defecto", inp(b+"by"), "", "Se usa en cada proyecto nuevo.")}${fld("Cargo del asesor", inp(b+"role"))}${fld("Teléfono del asesor", inp(b+"phone"))}${fld("Correo del asesor", inp(b+"advEmail"))}${fld("Dirección", inp(b+"address"))}${fld("Ciudad", inp(b+"city"))}${fld("Teléfono", inp(b+"phone"))}${fld("Correo", inp(b+"email"))}${fld("Sitio web", inp(b+"web"))}
  </div></div>
  <div class="panel"><div class="ph"><h2>Identidad visual</h2></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
   <div class="row">${fld("Color principal", `<input type="color" id="f_brand_primary" data-p="S.brand.primary" data-t="t" value="${esc(S.brand.primary)}">`)}${fld("Color secundario", `<input type="color" id="f_brand_secondary" data-p="S.brand.secondary" data-t="t" value="${esc(S.brand.secondary)}">`)}${fld("Tamaño de página", sel(b+"page", [["letter","Carta"],["A4","A4"]]))}</div>
@@ -1645,7 +1655,8 @@ const A = {
  newProj(){ const cur = proj(); const svc = clone(cur.svc); svc.tarifa = null; svc.desc = 0; svc.prev = null; svc.corr = null; svc.fisico = 0; svc.costs = clone(S.svcCosts || DEF_PARAMS.svc.costs); const lab = Object.assign(clone(cur.labor), clone(S.laborBase || DEF_PARAMS.labor)); lab.days = 0;
   const p = newProject({margins:clone(cur.margins), iva:cur.iva, fin:clone(cur.fin), svc, labor:lab}, S.brand); p.num = nextNum(); delete p.kind; S.projects[p.id] = p; S.active = p.id; VIEW = "proyecto"; },
  dupProj(){ const p = clone(proj()); p.id = uid("p"); p.num = nextNum(); p.client += " (copia)"; p.history = []; p.status = "borrador"; p.updated = Date.now(); S.projects[p.id] = p; S.active = p.id; toast("Proyecto duplicado"); },
- delProj(){ arm("btnDelProj", ()=>{ if (Object.keys(S.projects).length<=1){ toast("Debe quedar al menos un proyecto"); return; } const p = S.projects[S.active]; trashOnDisk(p); delete S.projects[S.active]; S.active = Object.keys(S.projects)[0]; commit(); toast(DISK.ok?"Proyecto enviado a la papelera de la carpeta":"Proyecto eliminado"); }); return "noop"; },
+ delProj(){ arm("btnDelProj", ()=>{ removeProject(S.active); }); return "noop"; },
+ delProjRow(d){ arm("dp_"+d.id, ()=>{ removeProject(d.id); }); return "noop"; },
  setKind(d){ const P = proj(), was = P.kind; applyKind(P, d.k); V._kind = false; P.updated = Date.now(); if (d.k==="directa" && VIEW==="monitoreo") VIEW = "proyecto"; toast(was ? "Tipo cambiado a: "+KINDS[d.k].short : "Proyecto nuevo · "+KINDS[d.k].short); },
  openKind(){ V._kind = true; },
  closeKind(){ V._kind = false; },
@@ -1654,7 +1665,7 @@ const A = {
  reconnect(){ reconnect(); return "noop"; },
  diskLoad(d){ loadFromDisk(d.m); return "noop"; },
  saveVersion(){ const P = proj(), n = ($("#verNote")?.value || "").trim(); snapshot(P, n || "Versión guardada"); P.savedHash = projHash(P); P.savedAt = Date.now(); writeNow(); toast("Versión guardada en el historial"); },
- saveProj(){ const P = proj(), n = ($("#verNote")?.value || "").trim();
+ saveProj(){ if (noProjects()) return "noop"; const P = proj(), n = ($("#verNote")?.value || "").trim();
   if (unsaved(P)){ snapshot(P, n || "Guardado", false); P.savedHash = projHash(P); P.savedAt = Date.now(); dirty.proj.add(P.id); writeNow().then(()=>render()); toast("Cotización guardada · versión "+P.history.length+" en el historial"); }
   else { writeNow(); toast("No hay cambios desde el último guardado"); }
   return "noop"; },
@@ -1698,11 +1709,24 @@ const A = {
  clearImg(d){ S.brand[d.k] = ""; },
  resetBrand(){ arm("btnResetBrand", ()=>{ S.brand = clone(DEF_BRAND); S.texts = clone(DEF_TEXTS); commit(); toast("Marca restaurada"); }); return "noop"; }
 };
-function nextNum(){ const y = new Date().getFullYear(); const n = Object.values(S.projects).map(p=>+(String(p.num).match(/(\d+)$/)||[0,0])[1]).reduce((a,b)=>Math.max(a,b),0)+1; return "COT-"+y+"-"+String(n).padStart(3,"0"); }
+function removeProject(id){
+ const p = S.projects[id]; if (!p) return;
+ trashOnDisk(p); delete S.projects[id]; dirty.proj.delete(id);
+ if (S.active===id) S.active = Object.keys(S.projects)[0] || null;
+ if (!S.active) VIEW = "proyectos";
+ commit(); writeNow(); toast((DISK.ok?"Proyecto enviado a la papelera de la carpeta":"Proyecto eliminado")+" · la próxima cotización será la "+peekNum());
+}
+// Consecutivo: sigue a la cotización más alta que exista en el año. Si borra la última, ese número se vuelve a usar.
+// "Continuar desde" (opcional) sirve para arrancar después de la numeración de un sistema anterior.
+function seqInfo(){ const y = new Date().getFullYear(); S.seqStart ||= {}; const pre = (S.seqPrefix||"COT").trim()||"COT";
+ const used = Object.values(S.projects).map(p=>{ const m = String(p.num).match(/(\d{4})-(\d+)$/); return m && +m[1]===y ? +m[2] : 0; }).reduce((a,b)=>Math.max(a,b),0);
+ return {y, pre, last: Math.max(+S.seqStart[y]||0, used)}; }
+function peekNum(){ const i = seqInfo(); return i.pre+"-"+i.y+"-"+String(i.last+1).padStart(3,"0"); }
+function nextNum(){ return peekNum(); }
 function download(text, name, type){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text],{type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 500); toast("Archivo generado: "+name); }
 
 let rT;
-function commit(){ dirty.cfg = true; if (S.active) dirty.proj.add(S.active); save(); clearTimeout(rT); rT = setTimeout(()=>{ const a = document.activeElement, id = a && a.id; let ss=null, se=null; try { ss = a.selectionStart; se = a.selectionEnd; } catch(e){}
+function commit(){ dirty.cfg = true; if (S.active && S.projects[S.active]) dirty.proj.add(S.active); save(); clearTimeout(rT); rT = setTimeout(()=>{ const a = document.activeElement, id = a && a.id; let ss=null, se=null; try { ss = a.selectionStart; se = a.selectionEnd; } catch(e){}
  const y = window.scrollY; render(); window.scrollTo(0,y); if (id){ const n = document.getElementById(id); if (n){ n.focus({preventScroll:true}); try { if (ss!=null) n.setSelectionRange(ss,se); } catch(e){} } } }, 0); }
 
 document.addEventListener("change", e=>{

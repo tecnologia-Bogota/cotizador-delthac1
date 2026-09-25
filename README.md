@@ -80,3 +80,9 @@ El tipo se puede cambiar en cualquier momento desde el proyecto; los equipos y c
 |---|---|---|
 | Con monitoreo | 1,9 % preferencial (base gravable 10 % × 19 %) sobre la implementación, las cuotas y el servicio mensual | Sí (24 y 3 meses) |
 | Venta directa | 19 % pleno sobre el total | No |
+
+## Consecutivo y borrado de proyectos (v14)
+
+- El consecutivo (por ejemplo `COT-2026-004`) **sigue a la cotización más alta que exista** en el año. Si tiene de la 001 a la 004 y borra la 004, la próxima vuelve a ser la 004. Si borra una intermedia (la 002), la próxima sigue siendo la siguiente a la más alta.
+- En Empresa y marca se edita el prefijo y, si hace falta, un número desde el cual continuar (para seguir una numeración anterior).
+- Se pueden borrar todos los proyectos. Si la carpeta de datos está vinculada, lo borrado queda en `papelera/`.
