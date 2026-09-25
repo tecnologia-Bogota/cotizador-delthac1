@@ -64,3 +64,19 @@ Para actualizar la app, reemplace `index.html` en el repositorio. Si cambia `sw.
 - **Monitoreo**: tarifas fijas por modalidad (virtual $150.000 / híbrido $120.000 por apartamento) editables en Empresa y marca.
 - **Licencias Hipcam automáticas**: 1 licencia única por proyecto (incluye 1 terminal de 8") + 1 adicional por cada terminal de 8" extra.
 - **Plan de pagos** en la propuesta: tabla de amortización de 24 meses y cuotas de 3 meses.
+
+## Tipo de cotización (v11)
+
+Al crear un proyecto la app pregunta:
+
+- **Con servicio de monitoreo**: portería virtual o híbrido, tarifa mensual por apartamento, P&L del servicio, esquema de ahorro y financiación con IVA preferencial.
+- **Venta directa (suministro e instalación)**: cotización más directa para su propia empresa. Oculta la pestaña Monitoreo y quita de la propuesta todo lo relacionado (tarifa mensual, ahorro, P&L). Usa textos propios (editables en Empresa y marca → Textos para venta directa) con condiciones de pago 50 % anticipo / 50 % contra entrega.
+
+El tipo se puede cambiar en cualquier momento desde el proyecto; los equipos y cantidades se conservan.
+
+## IVA según el tipo de cotización (v12)
+
+| Tipo | IVA que ve el cliente | Financiación |
+|---|---|---|
+| Con monitoreo | 1,9 % preferencial (base gravable 10 % × 19 %) sobre la implementación, las cuotas y el servicio mensual | Sí (24 y 3 meses) |
+| Venta directa | 19 % pleno sobre el total | No |

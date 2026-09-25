@@ -142,6 +142,13 @@ details.prof .pbody{padding:12px 14px;display:flex;flex-direction:column;gap:14p
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
 .seg button{all:unset;cursor:pointer;padding:6px 10px;font:600 12.5px var(--f-head);letter-spacing:.05em;text-transform:uppercase}
 .seg button.on{background:var(--brand);color:#fff}
+.modal-bg{position:fixed;inset:0;background:rgba(20,18,22,.55);z-index:40;display:grid;place-items:center;padding:16px}
+.modal{background:var(--surface);border-radius:8px;padding:22px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.modal h2{font:700 22px var(--f-head);margin:0 0 4px}
+.kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.kind{all:unset;cursor:pointer;border:2px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px;background:var(--surface2)}
+.kind b{font:700 16px var(--f-head);color:var(--ink)}.kind span{font-size:13px;color:var(--muted);line-height:1.4}
+.kind:hover,.kind:focus-visible{border-color:var(--brand-text)}.kind.on{border-color:var(--brand);background:var(--brand-soft)}
 .savebox{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:8px 14px;border-right:1px solid var(--line2)}
 .savebox .btn{min-width:118px;justify-content:center}.warnt{color:var(--warn);font-weight:600}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:#999}.dot.ok{background:#3CCB7F}.dot.warn{background:#F0B429}.dot.crit{background:#F07A6E}
@@ -251,6 +258,8 @@ tr.diffrow td{background:var(--surface2)}
   #print .doc .cover{page:cover;width:100%;height:279mm;break-after:page}
   #print .doc[data-page="A4"] .cover{height:296mm}
   #print .doc .inner{padding:0}
+  #print .doc .ds:last-child{margin-bottom:0}
+  #print .doc .sign{margin-top:24px}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
@@ -584,6 +593,8 @@ function upgrade(st){
  st.svcModes ||= clone(DEF_SVC_MODES); st.licRules ||= clone(DEF_LIC_RULES); st.licRules.forEach(r=>{ if (r.id==="hipcam" && r.base==="n11"){ r.base = "n12"; r.extra = "n13"; } }); st.brand.wa ||= DEF_WA; st.texts.checklist ||= clone(DEF_CHECKLIST);
  st.svcCosts ||= clone(DEF_PARAMS.svc.costs);
  st.laborBase ||= clone(DEF_PARAMS.labor);
+ st.textsDirect ||= clone(DEF_TEXTS_DIRECT); Object.keys(DEF_TEXTS_DIRECT).forEach(k=>{ st.textsDirect[k] ??= clone(DEF_TEXTS_DIRECT[k]); });
+ if (!st.patches.includes("tipo-v11")){ Object.values(st.projects).forEach(p=>{ if (!p.kind && ((p.lines||[]).length || p.client)) p.kind = "monitoreo"; }); st.patches.push("tipo-v11"); }
  if (!st.patches.includes("mo-base-v8")){ Object.values(st.projects).forEach(p=>{ if (p.labor && !+p.labor.transport && !+p.labor.imprev){ p.labor.transport = st.laborBase.transport; p.labor.imprev = st.laborBase.imprev; } }); st.patches.push("mo-base-v8"); }
  if (!st.patches.includes("monitoreo-fijo-v6")){
   Object.values(st.projects).forEach(p=>{ if (!p.svc) return; if (!+p.svc.tarifa) p.svc.tarifa = null; if (!+p.svc.prev) p.svc.prev = null; if (!+p.svc.corr) p.svc.corr = null; if (p.fin && !p.lines.length) p.fin.bNoInt = true; });
@@ -801,16 +812,19 @@ function compute(P = proj()){
  R.impl = R.eqSale + R.matSale + R.moSale;
  R.sub = R.impl + (P.inclMaint ? R.maintSale : 0);
  R.cost = R.eqCost + R.matCost + R.moCost + (P.inclMaint ? R.maintCost : 0);
- R.iva = R.sub * (+P.iva||0)/100; R.total = R.sub + R.iva;
+ // IVA: venta directa = IVA pleno (19 %) · con monitoreo = IVA preferencial (base gravable 10 % × 19 % = 1,9 %)
+ R.ivaPref = (+(P.fin.aiu ?? 10)) * (+P.iva||0) / 100;
+ R.ivaRate = isDirect(P) ? (+P.iva||0) : R.ivaPref;
+ R.ivaLabel = isDirect(P) ? "IVA "+num(R.ivaRate)+" %" : "IVA "+num(R.ivaRate)+" % (preferencial)";
+ R.iva = R.sub * R.ivaRate/100; R.total = R.sub + R.iva;
  R.margin = R.sub>0 ? (R.sub - R.cost)/R.sub : 0; R.marginAmt = R.sub - R.cost;
  // por sistema
  const bySys = {}; S.systems.forEach(s=>bySys[s]={cost:0,sale:0,n:0});
  R.lines.forEach(x=>{ const b = bySys[x.sys] || (bySys[x.sys]={cost:0,sale:0,n:0}); b.cost+=x.costT; b.sale+=x.saleT; b.n+=x.qty; });
  R.bySys = bySys;
  // financiación
- const F = P.fin, rate = (+F.rate||0)/100, fb = F.base==="con" ? R.impl*(1+(+P.iva||0)/100) : R.impl;
+ const F = P.fin, rate = (+F.rate||0)/100, fb = F.base==="con" ? R.impl*(1+R.ivaRate/100) : R.impl;
  // IVA preferencial = base gravable (AIU) % × IVA %. Ej.: 10 % × 19 % = 1,9 %
- R.ivaPref = (+(F.aiu ?? 10)) * (+P.iva||0) / 100;
  const plan = (n, noInt) => { n = Math.max(1, +n||1); const r = noInt ? 0 : rate; const c = fb ? (r ? fb*r/(1-Math.pow(1+r,-n)) : fb/n) : 0; const ivaC = c*R.ivaPref/100; return {n, noInt:!!noInt, cuota:c, ivaC, fin:c+ivaC, totalPay:c*n, interest:c*n-fb}; };
  R.finBase = fb; R.planA = plan(F.nA); R.planB = plan(F.nB, F.bNoInt);
  const amort = []; let sal = fb; for (let k=1;k<=R.planA.n;k++){ const it = sal*rate, cap = R.planA.cuota - it, fin = sal - cap; amort.push({k, ini:sal, it, cap, c:R.planA.cuota, fin}); sal = fin; }
@@ -823,7 +837,43 @@ function compute(P = proj()){
  R.audit = audit(P, R);
  return R;
 }
+// ===== Tipo de proyecto: con monitoreo o venta directa =====
+const KINDS = {
+ monitoreo:{name:"Con servicio de monitoreo", short:"Con monitoreo", desc:"Portería virtual, híbrido o monitoreo: incluye tarifa mensual por apartamento, P&L del servicio, esquema de ahorro y financiación con IVA preferencial."},
+ directa:{name:"Venta directa (suministro e instalación)", short:"Venta directa", desc:"Cotización más directa para su empresa: equipos, materiales, instalación e IVA. Sin monitoreo, sin tarifa mensual ni esquema de ahorro."}
+};
+const isDirect = p => (p||proj()).kind === "directa";
+const DEF_TEXTS_DIRECT = {
+ presentacion:"{empresa} presenta esta propuesta para el suministro, instalación y puesta en marcha de los sistemas de seguridad electrónica requeridos por {cliente}. La solución fue dimensionada según las necesidades del inmueble e incluye equipos, materiales, mano de obra calificada, configuración y capacitación.",
+ quienes:"Somos una empresa dedicada al diseño, suministro e instalación de sistemas de seguridad electrónica: videovigilancia, control de acceso, alarmas, redes y respaldo eléctrico. Trabajamos con marcas reconocidas, personal técnico calificado y acompañamiento posventa.",
+ capacidades:["Diseño e ingeniería de sistemas de seguridad electrónica.","Suministro de equipos de marcas reconocidas.","Instalación con personal técnico calificado.","Configuración de redes, grabación y acceso remoto.","Soporte y mantenimiento posventa."],
+ compromiso:["Soluciones ajustadas a las condiciones del inmueble.","Cumplimiento en los tiempos de entrega.","Trabajo limpio, ordenado y seguro.","Capacitación y entrega documentada.","Atención oportuna de garantías."],
+ servicios:["Suministro de equipos nuevos con garantía de fábrica","Materiales de instalación: cableado, canalización y accesorios","Instalación por personal técnico calificado","Configuración y puesta en marcha de los sistemas","Acceso remoto y aplicación móvil cuando el equipo lo permita","Pruebas de funcionamiento y entrega","Capacitación al personal encargado","Soporte técnico posventa"],
+ condiciones:["Forma de pago: 50 % de anticipo para iniciar y 50 % contra entrega.","Tiempo de ejecución estimado: {diasobra} días a partir del anticipo.","Garantía de equipos según fabricante; garantía de instalación de 6 meses.","Obras civiles, resanes y pintura no incluidos salvo que se indiquen.","Sujeto a disponibilidad de inventario al momento de la aprobación.","Precios en pesos colombianos con IVA discriminado."],
+ cierre:"Agradecemos la oportunidad de presentar esta propuesta. Quedamos atentos para resolver sus inquietudes, realizar la visita técnica y programar la instalación."
+};
+const textsFor = p => isDirect(p) ? Object.assign({}, S.texts, S.textsDirect||DEF_TEXTS_DIRECT) : S.texts;
+function applyKind(p, kind){
+ p.kind = kind;
+ if (kind==="directa"){
+  Object.assign(p.pdf, {sol:false, modelo:false, svc:false, ahorro:false, fin:false, plan:false, diag:false});
+  p.fin.base = "con"; p.fin.aiu = 0;
+ } else {
+  Object.assign(p.pdf, {sol:true, modelo:true, svc:true, ahorro:true, fin:true, plan:true, diag:true});
+  p.fin.base = "sin"; p.fin.aiu = 10;
+ }
+}
+function kindModal(){
+ const P = proj(), first = !P.kind;
+ return `<div class="modal-bg" id="kindModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="kmTitle">
+  <h2 id="kmTitle">¿Qué tipo de cotización es?</h2><p class="muted" style="margin:0 0 14px">${first?"Elija cómo se va a presentar este proyecto.":"Puede cambiarlo cuando quiera; los equipos y cantidades se conservan."}</p>
+  <div class="kinds">${Object.entries(KINDS).map(([k,v])=>`<button class="kind ${P.kind===k?"on":""}" data-act="setKind" data-k="${k}"><b>${v.name}</b><span>${v.desc}</span></button>`).join("")}</div>
+  ${first?"":`<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" data-act="closeKind">Cancelar</button></div>`}
+ </div></div>`;
+}
+function monEmpty(){ const z = {ing:0,costs:0,gross:0,grossPct:0,adm:0,vta:0,op:0,opPct:0,eqIng:0,eqMonth:0}; return {u:0,uD:1,plazo:1,ivaEf:0,base:0,tarifa:0,nPrev:0,nCorr:0,modeName:"",tarOv:false,iva:0,final:0,lines:[],cSum:0,mPrev:0,mCorr:0,eqMonth:0,solo:z,con:Object.assign({},z),fis:0,bill:0,propEq:0,propSolo:0,ahorroEq:0,ahorroEqPct:0,ahorroSolo:0,ahorroSoloPct:0,gross:0,grossPct:0,adm:0,vta:0,op:0,opPct:0}; }
 function monitoring(P, R){
+ if (isDirect(P)) return monEmpty();
  const V = P.svc, u = +P.units||0, uD = Math.max(1,u), plazo = Math.max(1, +P.contract||0);
  const ivaEf = (+(V.aiu ?? 10)) * (+P.iva||0) / 100;
  const md = (S.svcModes||DEF_SVC_MODES)[V.mode] || DEF_SVC_MODES.virtual;
@@ -867,17 +917,17 @@ function audit(P, R){
  add(odd.length?"warn":"ok","Tarifas de instalación atípicas (> 3× costo del equipo)", odd.length? [...new Set(odd)].join("; ") : "0", "Valide si la tarifa es por unidad o global");
  add(R.eqUnits && !R.days ? "crit":"ok","Días de instalación calculados", R.days+" días · "+num(R.hours)+" h", "Revise horas por equipo y técnicos");
  const last = R.amort[R.amort.length-1];
- add(!last || Math.abs(last.fin) < 1 ? "ok":"crit","Tabla de amortización cierra en cero", last? money(last.fin) : "—", "Revise tasa y número de cuotas");
- add("ok","Financiación excluye mantenimiento y monitoreo", "Base: "+money(R.finBase), "Corregido frente al Excel");
+ if (!isDirect(P)) add(!last || Math.abs(last.fin) < 1 ? "ok":"crit","Tabla de amortización cierra en cero", last? money(last.fin) : "—", "Revise tasa y número de cuotas");
+ if (isDirect(P)) add("ok","IVA de venta directa", "IVA pleno "+num(R.ivaRate)+" % · sin financiación", ""); else add("ok","IVA preferencial en implementación, cuotas y servicio", num(R.ivaRate)+" % · base financiable "+money(R.finBase), "");
  add(R.kitMissing.length?"warn":"ok","Accesorios de tubería con material asignado para cada medida", R.kitMissing.length? R.kitMissing.join(", ") : "Completo", "Asigne el material en Reglas → Canalización");
  R.licWarn.forEach(w=>add("crit","Licencias automáticas", w, "Restaure la licencia en Catálogo o elíjala en Reglas → Licencias"));
  const M = R.svc;
- if (M.base>0){
+ if (isDirect(P)){} else if (M.base>0){
   add(M.solo.op>0?"ok":"crit","Monitoreo solo servicio: utilidad operacional", money(M.solo.op)+" · "+pct(M.solo.opPct), "Suba la tarifa por unidad o revise los costos mensuales");
   add(M.con.op>0?"ok":"crit","Monitoreo con equipos: utilidad operacional", money(M.con.op)+" · "+pct(M.con.opPct), "El costo de equipos amortizado no se alcanza a cubrir");
  } else add("info","Monitoreo", "Sin tarifa o sin unidades", "Complete unidades y tarifa si incluye monitoreo");
- if (R.impl>0 && (+P.contract||0)>0 && +P.fin.nA !== +P.contract) add("warn","Plazo de financiación distinto al plazo del contrato", P.fin.nA+" cuotas vs "+P.contract+" meses", "Si el contrato termina antes, quedan cuotas sin respaldo de servicio");
- if (M.base>0 && !(+P.contract>0)) add("warn","Plazo del contrato de monitoreo", "0 meses", "Defina el plazo: se usa para amortizar el costo de equipos");
+ if (!isDirect(P) && R.impl>0 && (+P.contract||0)>0 && +P.fin.nA !== +P.contract) add("warn","Plazo de financiación distinto al plazo del contrato", P.fin.nA+" cuotas vs "+P.contract+" meses", "Si el contrato termina antes, quedan cuotas sin respaldo de servicio");
+ if (!isDirect(P) && M.base>0 && !(+P.contract>0)) add("warn","Plazo del contrato de monitoreo", "0 meses", "Defina el plazo: se usa para amortizar el costo de equipos");
  const exp = new Date((P.date||today())+"T12:00:00"); exp.setDate(exp.getDate() + (+P.validity||0));
  add(exp >= new Date(today()+"T00:00:00") ? "ok":"warn","Cotización vigente", "Vence "+fmtDate(exp.toISOString().slice(0,10)), "Actualice la fecha o vigencia");
  add(P.client && P.nit && P.contact ? "ok":"warn","Datos del cliente completos (nombre, NIT y contacto)", (P.client?"Nombre ✓":"Nombre —")+" · "+(P.nit?"NIT ✓":"NIT —")+" · "+(P.contact?"Contacto ✓":"Contacto —"), "Complete en Proyecto");
@@ -893,18 +943,19 @@ let R;
 function render(){
  R = compute();
  applyBrand();
- $("#nav").innerHTML = VIEWS.map(([k,l],i)=>`<button data-go="${k}" class="${VIEW===k?"on":""}"><span class="k">${String(i+1).padStart(2,"0")}</span>${l}</button>`).join("");
+ $("#nav").innerHTML = VIEWS.filter(([k])=>!(k==="monitoreo" && isDirect())).map(([k,l],i)=>`<button data-go="${k}" class="${VIEW===k?"on":""}"><span class="k">${String(i+1).padStart(2,"0")}</span>${l}</button>`).join("");
  $("#projSel").innerHTML = Object.values(S.projects).map(p=>`<option value="${p.id}" ${p.id===S.active?"selected":""}>${esc(p.client||"Sin nombre")} · ${esc(p.num)}</option>`).join("");
  renderKpis();
- $("#view").innerHTML = (V[VIEW]||V.proyecto)();
+ if (VIEW==="monitoreo" && isDirect()) VIEW = "proyecto";
+ $("#view").innerHTML = (V[VIEW]||V.proyecto)() + ((!proj().kind || V._kind) ? kindModal() : "");
 }
 function renderKpis(){
  const P = proj(), ok = R.margin*100 >= (+P.margins.min||0) - 1e-6, un = unsaved(P);
- $("#kpis").innerHTML = `<div class="proj"><b>${esc(P.client||"Proyecto sin nombre")}</b><span>${esc(P.num)} · ${fmtDate(P.date)} · ${num(R.eqUnits)} equipos</span></div>
+ $("#kpis").innerHTML = `<div class="proj"><b>${esc(P.client||"Proyecto sin nombre")}</b><span>${esc(P.num)} · ${fmtDate(P.date)} · ${num(R.eqUnits)} equipos · <a href="#" data-act="openKind" title="Cambiar tipo de cotización">${esc(KINDS[P.kind]?.short||"Elegir tipo")}</a></span></div>
  <div class="savebox"><button class="btn ${un?"pri":""}" data-act="saveProj" id="btnSave" title="Guarda la cotización y deja una versión en el historial (Ctrl + S)">${un?"Guardar":"Guardado ✓"}</button><span class="small ${un?"warnt":"muted"}">${un?"Cambios sin guardar":(P.savedAt?"Última vez "+fmtDT(P.savedAt):"")}</span></div>
  <div class="kpi"><span class="l">Costo total</span><span class="v">${money(R.cost)}</span></div>
  <div class="kpi"><span class="l">Venta sin IVA</span><span class="v">${money(R.sub)}</span></div>
- <div class="kpi"><span class="l">IVA ${num(P.iva)} %</span><span class="v">${money(R.iva)}</span></div>
+ <div class="kpi"><span class="l">IVA ${num(R.ivaRate)} %</span><span class="v">${money(R.iva)}</span></div>
  <div class="kpi main"><span class="l">Total con IVA</span><span class="v">${money(R.total)}</span></div>
  <div class="kpi"><span class="l">Margen</span><span class="v">${R.sub? `<span class="pill ${ok?"ok":"crit"}">${pct(R.margin)}</span>` : "—"}</span></div>`;
 }
@@ -966,7 +1017,7 @@ V.proyectos = () => {
  const won = by("aprobada").length, lost = by("perdida").length;
  const tr = rows.map(({p,s})=>{ const late = p.next && p.next < today() && !["aprobada","perdida"].includes(p.status);
   return `<tr class="${p.id===S.active?"cur":""}"><td class="mono">${esc(p.num)}</td><td><a href="#" data-act="openProj" data-id="${p.id}"><b>${esc(p.client||"Sin nombre")}</b></a><div class="src">${esc([p.contact,p.city].filter(Boolean).join(" · "))}</div></td>
-  <td>${stPill(p.status)}</td><td class="n">${money(s.total)}</td><td class="n">${s.sub?pct(s.margin):"—"}</td><td class="n">${num(s.units)}</td>
+  <td>${stPill(p.status)}<div class="src">${esc(KINDS[p.kind]?.short||"")}</div></td><td class="n">${money(s.total)}</td><td class="n">${s.sub?pct(s.margin):"—"}</td><td class="n">${num(s.units)}</td>
   <td class="small">${p.next?`<span class="${late?"late":""}">${fmtDate(p.next)}</span>`:"—"}${p.status==="perdida"&&p.lostReason?`<div class="src">${esc((LOST_REASONS.find(r=>r[0]===p.lostReason)||[,""])[1])}</div>`:""}</td><td class="n">${(p.history||[]).length}</td><td class="small muted">${fmtDT(p.updated||Date.now())}</td>
   <td class="n"><button class="btn sm" data-act="openProj" data-id="${p.id}">Abrir</button></td></tr>`; }).join("");
  const diskCard = DISK.ok ? `<div class="note ok"><b>Sus datos están a salvo en la carpeta “${esc(DISK.handle.name)}”.</b> Cada cambio se guarda como archivo JSON por proyecto, con un respaldo completo diario (últimos 30 días). Si borra el historial del navegador, abra la app y elija la misma carpeta para recuperarlo todo.</div>`
@@ -1047,6 +1098,7 @@ V.proyecto = () => {
  const m = +P.margins.eq||0, c0 = 100000, pv0 = m<100 ? c0/(1-m/100) : 0;
  return `<div class="vhead"><div><h1 class="vt">Proyecto</h1><p class="vsub">Datos del cliente, parámetros comerciales y supuestos técnicos. Cada proyecto nuevo empieza en blanco; solo hereda los parámetros comerciales de la empresa.</p></div>
  <div class="row"><button class="btn pri" data-act="newProj">Nuevo proyecto</button><button class="btn" data-act="dupProj">Duplicar</button><button class="btn" data-act="exportJson">Exportar respaldo</button><button class="btn" data-act="importJson">Importar</button><button class="btn danger" data-act="delProj" id="btnDelProj">Eliminar</button></div></div>
+ <div class="note"><b>Tipo de cotización: ${esc(KINDS[P.kind]?.name||"sin definir")}.</b> ${esc(KINDS[P.kind]?.desc||"")} <button class="btn sm" data-act="openKind" style="margin-left:6px">Cambiar</button></div>
  <div class="cols2">
  <div class="panel"><div class="ph"><h2>Identificación</h2></div><div class="pb grid">
   ${fld("Cliente / proyecto", inp("P.client","t",'placeholder="Nombre del edificio o cliente"'), "wide")}
@@ -1067,7 +1119,7 @@ V.proyecto = () => {
   ${fld("Margen materiales %", inp("P.margins.mat","n"), "", "Se aplica al costo total de la lista de materiales (cable, tubería, accesorios).")}
   ${fld("Margen mano de obra y mantenimiento %", inp("P.margins.mo","n"), "", "Se aplica al costo de instalación y al mantenimiento anual.")}
   ${fld("Margen mínimo aceptable %", inp("P.margins.min","n"), "", "Piso comercial. Si el proyecto o una línea queda por debajo, la auditoría lo marca.")}
-  ${fld("IVA %", inp("P.iva","n"), "", "IVA pleno sobre la venta de la implementación (equipos, materiales, instalación).")}
+  ${fld("IVA %", inp("P.iva","n"), "", isDirect()?"Venta directa: el cliente paga IVA pleno del "+num(P.iva)+" % sobre el total.":"Con monitoreo: el cliente paga IVA preferencial = base gravable "+num(P.fin.aiu)+" % × "+num(P.iva)+" % = "+num(R.ivaPref)+" % sobre la implementación, las cuotas y el servicio.")}
   ${fld("Mantenimiento anual en el total", `<div class="row">${inp("P.inclMaint","b")}<small class="muted">Suma al proyecto; nunca se financia</small></div>`, "", "Desmarcado: aparece en la propuesta como valor anual opcional.")}
  </div>
  <div class="pb"><div class="note"><b>Cómo se forma el precio.</b> El margen se calcula sobre el precio de venta, no sobre el costo: <b>Precio = Costo ÷ (1 − margen)</b>.
@@ -1137,7 +1189,7 @@ V.cotizacion = () => {
   <tr><td>Instalación, configuración y puesta en marcha</td><td class="muted small"><a href="#" data-go="costos">${num(R.hours)} h · ${R.days} días</a></td><td class="n">${money(R.moCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.moSale)}</td></tr>
   <tr class="${P.inclMaint?"":"dim"}"><td>Mantenimiento anual (preventivo + correctivo) ${P.inclMaint?"":"— informativo, no suma"}</td><td class="muted small">${R.maint.length} tipos de equipo</td><td class="n">${money(R.maintCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.maintSale)}</td></tr>
   <tr class="tot"><td colspan="4">Total proyecto antes de IVA</td><td class="n">${money(R.sub)}</td></tr>
-  <tr><td colspan="4">IVA ${num(P.iva)} %</td><td class="n">${money(R.iva)}</td></tr>
+  <tr><td colspan="4">${esc(R.ivaLabel)}</td><td class="n">${money(R.iva)}</td></tr>
   <tr class="tot"><td colspan="4">Total proyecto con IVA</td><td class="n">${money(R.total)}</td></tr>
  </tbody></table></div></div>`;
 };
@@ -1251,7 +1303,7 @@ V.costos = () => {
  const P = proj(), L = P.labor;
  const acts = R.acts.map(a=>`<tr><td>${esc(a.name)}</td><td class="n">${num(a.qty)} ${a.un}</td><td class="n">${num(a.h)}</td><td class="n">${num(a.ht)}</td><td class="n">${money(a.rate)}</td><td class="n">${money(a.total)}</td></tr>`).join("");
  const mt = R.maint.map(m=>`<tr><td>${esc(m.name)}</td><td class="n">${num(m.qty)}</td><td class="n">${num(m.pv)} × ${money(m.pvv)}</td><td class="n">${money(m.pt)}</td><td class="n">${num(m.cf)} % × ${num(m.cv)} × ${money(m.cvv)}</td><td class="n">${money(m.ct)}</td></tr>`).join("");
- const pl = (p,lab) => `<tr class="grp"><td colspan="2">${lab}</td></tr><tr><td>Cuota base${p.noInt?" (sin interés)":""}</td><td class="n">${money(p.cuota)}</td></tr><tr><td>IVA preferencial ${num(R.ivaPref)} %</td><td class="n">${money(p.ivaC)}</td></tr><tr class="sub"><td>Cuota final</td><td class="n">${money(p.fin)}</td></tr><tr><td>Total pagado · intereses</td><td class="n">${money(p.totalPay)} · ${money(p.interest)}</td></tr><tr class="sub"><td>Total mensual (monitoreo final + cuota)</td><td class="n">${money(R.svc.final + p.fin*(1-(+P.svc.desc||0)/100))}</td></tr>`;
+ const pl = (p,lab) => `<tr class="grp"><td colspan="2">${lab}</td></tr><tr><td>Cuota base${p.noInt?" (sin interés)":""}</td><td class="n">${money(p.cuota)}</td></tr><tr><td>IVA preferencial ${num(R.ivaPref)} %</td><td class="n">${money(p.ivaC)}</td></tr><tr class="sub"><td>Cuota final</td><td class="n">${money(p.fin)}</td></tr><tr><td>Total pagado · intereses</td><td class="n">${money(p.totalPay)} · ${money(p.interest)}</td></tr><tr class="sub"><td>${isDirect()?"Cuota mensual":"Total mensual (monitoreo final + cuota)"}</td><td class="n">${money(R.svc.final + p.fin*(1-(+P.svc.desc||0)/100))}</td></tr>`;
  const am = R.amort.map(a=>`<tr><td class="n">${a.k}</td><td class="n">${money(a.ini)}</td><td class="n">${money(a.it)}</td><td class="n">${money(a.cap)}</td><td class="n">${money(a.c)}</td><td class="n">${money(Math.abs(a.fin)<1?0:a.fin)}</td></tr>`).join("");
  return `<div class="vhead"><div><h1 class="vt">Costos y financiación</h1><p class="vsub">Mano de obra por actividad, mantenimiento anual por equipo y plan de financiación de la implementación.</p></div></div>
  <div class="cols2">
@@ -1270,17 +1322,18 @@ V.costos = () => {
   <tr><td>Venta al cliente (÷ ${num(1-P.margins.mo/100)} · margen ${num(P.margins.mo)} %)</td><td class="n"><b>${money(R.moSale)}</b></td></tr>
   <tr><td colspan="2" class="small muted">El cliente ve un solo valor: “Instalación, configuración y puesta en marcha”. Transporte e imprevistos no aparecen por separado en la propuesta.</td></tr>
  </tbody></table></div></div>
+ ${isDirect()?`<div class="panel"><div class="ph"><h2>Forma de pago</h2></div><div class="pb"><div class="note"><b>Venta directa: sin financiación.</b> El cliente paga el total con IVA del ${num(R.ivaRate)} %: <b>${money(R.total)}</b>. La forma de pago (por ejemplo, 50 % de anticipo y 50 % contra entrega) se define en Empresa y marca → Textos para venta directa.</div></div></div>`:`
  <div class="panel"><div class="ph"><h2>Financiación de la implementación</h2><span class="hint">No incluye monitoreo ni mantenimiento</span></div><div class="pb grid">
   ${fld("Tasa de interés mensual %", inp("P.fin.rate","n"), "", "Cuota fija (sistema francés, función PMT de Excel).")}
   ${fld("Alternativa A · cuotas", inp("P.fin.nA","n"))}${fld("Alternativa B · cuotas", inp("P.fin.nB","n"))}
   ${fld("Alternativa B sin interés", `<div class="row">${inp("P.fin.bNoInt","b")}<small class="muted">Valor ÷ cuotas (pago de contado diferido)</small></div>`)}
   ${fld("Base gravable (AIU) %", inp("P.fin.aiu","n"), "", "IVA preferencial = base gravable × IVA. 10 % × "+num(P.iva)+" % = "+num(R.ivaPref)+" % sobre cada cuota.")}
   ${fld("Valor a financiar", sel("P.fin.base", [["sin","Venta sin IVA"],["con","Venta con IVA"]]))}
- </div><div class="tw"><table class="t"><tbody><tr><td>Valor a financiar</td><td class="n"><b>${money(R.finBase)}</b></td></tr>${R.finBase?"":`<tr><td colspan="2"><div class="note warn" style="margin:4px 0"><b>No hay implementación para financiar.</b> Las cuotas quedan en $0 y el total mensual de las dos alternativas es solo el monitoreo: ${num(P.units)} unidades × ${money(R.svc.tarifa)} + IVA ${num(R.svc.ivaEf)} % = ${money(R.svc.final)}. Al agregar equipos, cada alternativa tendrá su propia cuota.</div></td></tr>`}${pl(R.planA,"Alternativa "+R.planA.n+" meses")}${pl(R.planB,"Alternativa "+R.planB.n+" meses")}</tbody></table></div></div>
+ </div><div class="tw"><table class="t"><tbody><tr><td>Valor a financiar</td><td class="n"><b>${money(R.finBase)}</b></td></tr>${R.finBase?"":`<tr><td colspan="2"><div class="note warn" style="margin:4px 0"><b>No hay implementación para financiar.</b> Las cuotas quedan en $0 y el total mensual de las dos alternativas es solo el monitoreo: ${num(P.units)} unidades × ${money(R.svc.tarifa)} + IVA ${num(R.svc.ivaEf)} % = ${money(R.svc.final)}. Al agregar equipos, cada alternativa tendrá su propia cuota.</div></td></tr>`}${pl(R.planA,"Alternativa "+R.planA.n+" meses")}${pl(R.planB,"Alternativa "+R.planB.n+" meses")}</tbody></table></div></div>`}
  </div>
  <div class="panel"><div class="ph"><h2>Instalación por actividad</h2><span class="hint">Tarifas y horas se editan en Reglas</span></div><div class="tw"><table class="t"><thead><tr><th>Actividad</th><th class="n">Cantidad</th><th class="n">Horas / und</th><th class="n">Horas</th><th class="n">Tarifa</th><th class="n">Total</th></tr></thead><tbody>${acts || `<tr><td colspan="6" class="muted">Sin actividades: agregue equipos.</td></tr>`}<tr class="tot"><td colspan="3">Total instalación detallada</td><td class="n">${num(R.hours)}</td><td></td><td class="n">${money(R.instDetail)}</td></tr></tbody></table></div></div>
  <div class="panel"><div class="ph"><h2>Mantenimiento anual por equipo</h2><span class="hint">Preventivo = cant × visitas × valor · Correctivo = cant × % que falla × fallos/año × valor</span></div><div class="tw"><table class="t"><thead><tr><th>Equipo</th><th class="n">Cant</th><th class="n">Preventivo</th><th class="n">Total prev.</th><th class="n">Correctivo</th><th class="n">Total corr.</th></tr></thead><tbody>${mt || `<tr><td colspan="6" class="muted">Sin equipos.</td></tr>`}<tr class="tot"><td colspan="3">Total anual</td><td class="n">${money(R.prev)}</td><td></td><td class="n">${money(R.corr)}</td></tr></tbody></table></div></div>
- <details class="panel"><summary class="ph" style="cursor:pointer"><h2>Tabla de amortización · ${R.planA.n} meses</h2><span class="hint">Mostrar / ocultar</span></summary><div class="tw"><table class="t"><thead><tr><th class="n">Per.</th><th class="n">Saldo inicial</th><th class="n">Interés</th><th class="n">Capital</th><th class="n">Cuota</th><th class="n">Saldo final</th></tr></thead><tbody>${am}</tbody></table></div></details>`;
+ ${isDirect()?"":`<details class="panel"><summary class="ph" style="cursor:pointer"><h2>Tabla de amortización · ${R.planA.n} meses</h2><span class="hint">Mostrar / ocultar</span></summary><div class="tw"><table class="t"><thead><tr><th class="n">Per.</th><th class="n">Saldo inicial</th><th class="n">Interés</th><th class="n">Capital</th><th class="n">Cuota</th><th class="n">Saldo final</th></tr></thead><tbody>${am}</tbody></table></div></details>`}`;
 };
 
 V.monitoreo = () => {
@@ -1350,8 +1403,8 @@ V.resumen = () => {
  <div class="tiles">
   <div class="tile hi"><span class="l">Total cliente con IVA</span><span class="v">${money(R.total)}</span><span class="s">Venta sin IVA ${money(R.sub)}</span></div>
   <div class="tile"><span class="l">Margen bruto</span><span class="v">${money(R.marginAmt)}</span><span class="s">${pct(R.margin)} · mínimo ${num(P.margins.min)} %</span></div>
-  <div class="tile"><span class="l">Cuota ${R.planA.n} meses</span><span class="v">${money(R.planA.fin)}</span><span class="s">Total mensual con monitoreo ${money(R.monthA)}</span></div>
-  <div class="tile"><span class="l">Monitoreo · utilidad / mes</span><span class="v">${money(R.svc.con.op)}</span><span class="s">Con equipos ${pct(R.svc.con.opPct)} · solo servicio ${pct(R.svc.solo.opPct)}</span></div>
+  ${isDirect()?`<div class="tile"><span class="l">IVA ${num(R.ivaRate)} %</span><span class="v">${money(R.iva)}</span><span class="s">Venta directa · pago sin financiación</span></div>`:`<div class="tile"><span class="l">Cuota ${R.planA.n} meses</span><span class="v">${money(R.planA.fin)}</span><span class="s">Total mensual con monitoreo ${money(R.monthA)}</span></div>`}
+  ${isDirect()?`<div class="tile"><span class="l">Utilidad del proyecto</span><span class="v">${money(R.marginAmt)}</span><span class="s">Venta directa · sin servicio mensual</span></div>`:`<div class="tile"><span class="l">Monitoreo · utilidad / mes</span><span class="v">${money(R.svc.con.op)}</span><span class="s">Con equipos ${pct(R.svc.con.opPct)} · solo servicio ${pct(R.svc.solo.opPct)}</span></div>`}
  </div>
  <div class="panel"><div class="ph"><h2>Desglose por sistema y componente</h2></div><div class="tw"><table class="t"><thead><tr><th>Sistema</th><th class="n">Und</th><th class="n">Costo</th><th class="n">Venta sin IVA</th><th class="n">Margen $</th><th class="n">Margen %</th><th>% del total</th></tr></thead><tbody>${sysRows}${partRows}<tr class="tot"><td>Total proyecto</td><td></td><td class="n">${money(R.cost)}</td><td class="n">${money(R.sub)}</td><td class="n">${money(R.marginAmt)}</td><td class="n">${pct(R.margin)}</td><td></td></tr></tbody></table></div></div>
  <div class="panel"><div class="ph"><h2>Auditoría de la cotización</h2><span class="pill ${verdict[0]}">${verdict[1]}</span></div><div class="tw"><table class="t"><thead><tr><th>Estado</th><th>Control</th><th>Valor actual</th><th>Acción</th></tr></thead><tbody>${au}</tbody></table></div>
@@ -1385,7 +1438,7 @@ V.propuesta = () => {
  <div class="row"><button class="btn pri" data-act="printProp">Exportar PDF propuesta</button><button class="btn" data-act="printBom">PDF lista de materiales</button><button class="btn" data-act="printOT">PDF orden de trabajo</button></div></div>
  <div class="panel"><div class="ph"><h2>Contenido</h2></div><div class="pb" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px">
   ${opt("cover","Portada")}${opt("present","Presentación y quiénes somos")}${opt("diag","Diagnóstico del inmueble")}${opt("sol","Solución propuesta")}${opt("modelo","Modelo operativo")}
-  ${opt("eco","Propuesta económica")}${opt("fin","Alternativas de financiación")}${opt("svc","Servicio mensual de monitoreo")}${opt("ahorro","Esquema de ahorro (si hay factura actual)")}${opt("plan","Plan de pagos: tabla de amortización y cuotas")}${opt("equipos","Relación de equipos")}${opt("unit","Mostrar precios unitarios")}
+  ${opt("eco","Propuesta económica")}${isDirect()?"":opt("fin","Alternativas de financiación")}${isDirect()?"":opt("svc","Servicio mensual de monitoreo")+opt("ahorro","Esquema de ahorro (si hay factura actual)")}${isDirect()?"":opt("plan","Plan de pagos: tabla de amortización y cuotas")}${opt("equipos","Relación de equipos")}${opt("unit","Mostrar precios unitarios")}
   ${opt("mats","Anexo: materiales de instalación (sin precios)")}${opt("serv","Servicios incluidos")}${opt("cond","Requerimientos y condiciones")}${opt("cierre","Cierre y firmas")}
  </div></div>
  <div class="preview-wrap" id="pvw"><div id="pv">${docProposal()}</div></div>`;
@@ -1441,7 +1494,13 @@ V.marca = () => {
   ${fld("Lista de verificación de entrega (una por línea)", inp("S.texts.checklist","lines",'style="min-height:190px"'), "", "Aparece en la orden de trabajo para que el técnico marque cada prueba.")}
  </div></div>
  </div>
- <div class="panel"><div class="ph"><h2>Textos de la propuesta</h2></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
+ <div class="panel"><div class="ph"><h2>Textos para venta directa</h2><span class="hint">Se usan en las cotizaciones sin monitoreo · variable {diasobra} = días de instalación</span></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
+  ${fld("Presentación", inp("S.textsDirect.presentacion","area"))}${fld("Quiénes somos", inp("S.textsDirect.quienes","area"))}
+  <div class="cols2">${fld("Capacidades (una por línea)", inp("S.textsDirect.capacidades","lines"))}${fld("Compromiso de servicio (una por línea)", inp("S.textsDirect.compromiso","lines"))}</div>
+  <div class="cols2">${fld("Qué incluye (uno por línea)", inp("S.textsDirect.servicios","lines",'style="min-height:170px"'))}${fld("Condiciones comerciales (una por línea)", inp("S.textsDirect.condiciones","lines",'style="min-height:170px"'))}</div>
+  ${fld("Cierre", inp("S.textsDirect.cierre","area"))}
+ </div></div>
+ <div class="panel"><div class="ph"><h2>Textos de la propuesta (con monitoreo)</h2></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
   ${fld("Presentación", inp(t+"presentacion","area"))}${fld("Quiénes somos", inp(t+"quienes","area"))}
   <div class="cols2">${fld("Capacidades (una por línea)", inp(t+"capacidades","lines"))}${fld("Compromiso de servicio (una por línea)", inp(t+"compromiso","lines"))}</div>
   ${fld("Diagnóstico general", inp(t+"diagnostico","area"))}
@@ -1454,7 +1513,7 @@ V.marca = () => {
 };
 
 /* ---------- documento PDF ---------- */
-function fillVars(s){ const P = proj(), b = S.brand; return String(s||"").replace(/\{(\w+)\}/g,(m,k)=>({empresa:b.short||b.company,cliente:P.client,veh:P.veh,ped:P.ped,mbps:P.mbps,dias:P.rec,unidades:P.units,ciudad:P.city}[k] ?? m)); }
+function fillVars(s){ const P = proj(), b = S.brand; return String(s||"").replace(/\{(\w+)\}/g,(m,k)=>({diasobra:R?R.days:"",empresa:b.short||b.company,cliente:P.client,veh:P.veh,ped:P.ped,mbps:P.mbps,dias:P.rec,unidades:P.units,ciudad:P.city}[k] ?? m)); }
 function docHead(title){ const b = S.brand, P = proj(); return `<div class="dh">${b.logo?`<img src="${b.logo}" alt="">`:`<b style="font:700 14pt var(--f-head);color:var(--dc)">${esc(b.company)}</b>`}<div class="r"><b>${esc(title)}</b><br>${esc(P.client)} · ${esc(P.num)}<br>${fmtDate(P.date)}</div></div>`; }
 function docFoot(){ const b = S.brand; return `<div class="df"><span>${esc(b.company)}${b.nit?" · NIT "+esc(b.nit):""}</span><span>${[b.address,b.city,b.phone,b.email,b.web].filter(Boolean).map(esc).join(" · ")}</span></div>`; }
 function cover(){
@@ -1464,7 +1523,7 @@ function cover(){
  return `<section class="pg cover gen"><div class="g1"></div><div class="g2"></div><div class="g4"></div><div class="g3"></div>${b.logo?`<img class="clogo" src="${b.logo}" alt="">`:""}${(b.coverPos||"tl")==="tl" ? txt : txt.replace('class="ctext', 'class="ctext dark')}</section>`;
 }
 function docProposal(){
- const P = proj(), b = S.brand, T = S.texts, o = P.pdf; let n = 0;
+ const P = proj(), b = S.brand, T = textsFor(P), o = Object.assign({}, P.pdf, isDirect(P)?{svc:false, ahorro:false, fin:false, plan:false}:{}); let n = 0;
  const H = t => `<h2 class="dt"><span class="no">${String(++n).padStart(2,"0")}</span>${esc(t)}</h2>`;
  let s = "";
  if (o.present) s += `<div class="ds">${H("Presentación")}<p>${esc(fillVars(T.presentacion))}</p><h3>Quiénes somos</h3><p>${esc(fillVars(T.quienes))}</p>
@@ -1480,7 +1539,7 @@ function docProposal(){
    <tr><td>Instalación, configuración y puesta en marcha</td><td class="n">${money(R.moSale)}</td><td>Pago único</td></tr>
    ${P.inclMaint?`<tr><td>Mantenimiento preventivo y correctivo (año 1)</td><td class="n">${money(R.maintSale)}</td><td>Anual</td></tr>`:""}
    <tr class="t"><td>Total implementación antes de IVA</td><td class="n">${money(R.sub)}</td><td></td></tr>
-   <tr><td>IVA ${num(P.iva)} %</td><td class="n">${money(R.iva)}</td><td></td></tr>
+   <tr><td>${isDirect(P)?"IVA "+num(R.ivaRate)+" %":"IVA "+num(R.ivaRate)+" % (base gravable "+num(P.fin.aiu)+" % × "+num(P.iva)+" %)"}</td><td class="n">${money(R.iva)}</td><td></td></tr>
    <tr class="T"><td>Total implementación con IVA</td><td class="n">${money(R.total)}</td><td></td></tr>`;
   if (!P.inclMaint && R.maintSale) rows += `<tr><td colspan="3" class="small">Mantenimiento anual opcional (preventivo y correctivo): ${money(R.maintSale)} antes de IVA.</td></tr>`;
   s += `<div class="ds">${H("Propuesta económica")}<table class="dtb"><thead><tr><th>Concepto</th><th class="n">Valor</th><th>Periodicidad</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -1488,11 +1547,11 @@ function docProposal(){
    const dsc = (+P.svc.desc||0)/100;
    const col = (p) => `<table class="dtb"><thead><tr><th colspan="2">Alternativa ${p.n} ${p.n===1?"mes":"meses"}</th></tr></thead><tbody>
     ${o.svc?`<tr><td>Monitoreo base</td><td class="n">${money(R.svc.base)}</td></tr><tr><td>IVA monitoreo ${num(R.svc.ivaEf)} %</td><td class="n">${money(R.svc.iva)}</td></tr><tr class="s"><td>Monitoreo final</td><td class="n">${money(R.svc.final)}</td></tr>`:""}
-    ${o.fin?`<tr><td>Cuota implementación${p.noInt?" (sin interés)":""}${dsc?" − "+num(P.svc.desc)+" % desc.":""}</td><td class="n">${money(p.cuota*(1-dsc))}</td></tr><tr><td>IVA preferencial ${num(R.ivaPref)} %</td><td class="n">${money(p.ivaC*(1-dsc))}</td></tr><tr class="s"><td>Cuota final</td><td class="n">${money(p.fin*(1-dsc))}</td></tr>`:""}
+    ${o.fin?`<tr><td>Cuota implementación${p.noInt?" (sin interés)":""}${dsc?" − "+num(P.svc.desc)+" % desc.":""}</td><td class="n">${money(p.cuota*(1-dsc))}</td></tr>${R.ivaPref?`<tr><td>IVA preferencial ${num(R.ivaPref)} %</td><td class="n">${money(p.ivaC*(1-dsc))}</td></tr>`:""}<tr class="s"><td>Cuota final</td><td class="n">${money(p.fin*(1-dsc))}</td></tr>`:""}
     ${o.svc&&R.svc.fis?`<tr><td>${esc(P.svc.fisicoName)}</td><td class="n">${money(R.svc.fis)}</td></tr>`:""}
     <tr class="T"><td>Total mensual</td><td class="n">${money((o.svc?R.svc.final+R.svc.fis:0)+(o.fin?p.fin*(1-dsc):0))}</td></tr></tbody></table>`;
    s += `<div class="ds"><h3>${o.fin&&o.svc?"Esquema mensual · monitoreo y financiación":o.fin?"Alternativas de financiación":"Servicio mensual de monitoreo"}</h3><div class="two">${col(R.planA)}${o.fin?col(R.planB):""}</div>
-   <p class="small" style="margin-top:6px">${o.fin?`Valor financiado ${money(R.finBase)} a una tasa de ${num(P.fin.rate)} % mensual${R.planB.noInt?" (alternativa de "+R.planB.n+" cuotas sin interés)":""}. El IVA de las cuotas y del monitoreo se liquida sobre una base gravable del ${num(P.fin.aiu)} %. La financiación cubre equipos, materiales e instalación; no incluye el servicio mensual ni mantenimientos anuales. `:""}${o.svc?`Monitoreo para ${num(P.units)} unidades a ${money(P.svc.tarifa)} por unidad, contrato de ${num(P.contract)} meses con incremento anual IPC + ${num(P.ipc)} %.`:""}</p></div>`;
+   <p class="small" style="margin-top:6px">${o.fin?`Valor financiado ${money(R.finBase)} a una tasa de ${num(P.fin.rate)} % mensual${R.planB.noInt?" (alternativa de "+R.planB.n+" cuotas sin interés)":""}. ${R.ivaPref?`El IVA de las cuotas${isDirect()?"":" y del monitoreo"} se liquida sobre una base gravable del ${num(P.fin.aiu)} %.`:(P.fin.base==="con"?"El valor financiado ya incluye IVA.":"")} La financiación cubre equipos, materiales e instalación${isDirect()?"":"; no incluye el servicio mensual ni mantenimientos anuales"}. `:""}${o.svc?`Monitoreo para ${num(P.units)} unidades a ${money(P.svc.tarifa)} por unidad, contrato de ${num(P.contract)} meses con incremento anual IPC + ${num(P.ipc)} %.`:""}</p></div>`;
   }
   if (o.ahorro && R.svc.bill){ const M = R.svc, hib = P.svc.mode==="hibrido";
    s += `<div class="ds"><h3>Esquema de ahorro frente a la facturación actual</h3><table class="dtb"><thead><tr><th>Escenario</th><th class="n">Valor mensual</th><th class="n">Ahorro mensual</th><th class="n">Ahorro %</th></tr></thead><tbody>
@@ -1513,7 +1572,7 @@ function docProposal(){
   s += `<div class="ds">${H("Materiales de instalación incluidos")}<p class="small">Cantidades estimadas con reserva técnica; sujetas a validación en visita técnica.</p><table class="dtb"><thead><tr><th>Grupo</th><th>Material</th><th>UN</th><th class="n">Cantidad</th></tr></thead><tbody>${rows||`<tr><td colspan="4">Sin materiales calculados.</td></tr>`}</tbody></table></div>`;
  }
  if (o.plan && R.finBase>0) s += `<div class="ds">${H("Plan de pagos")}${planAnnex()}</div>`;
- if (o.serv) s += `<div class="ds">${H("Servicios incluidos")}<div class="ck">${T.servicios.map(x=>`<div>${esc(x)}</div>`).join("")}</div></div>`;
+ if (o.serv) s += `<div class="ds">${H(isDirect(P)?"Qué incluye la propuesta":"Servicios incluidos")}<div class="ck">${T.servicios.map(x=>`<div>${esc(x)}</div>`).join("")}</div></div>`;
  if (o.cond) s += `<div class="ds">${H("Requerimientos y condiciones")}<ol style="margin:0;padding-left:18px">${T.condiciones.map(x=>`<li>${esc(fillVars(x))}</li>`).join("")}<li>Vigencia de la oferta: ${num(P.validity)} días a partir del ${fmtDate(P.date)}.</li>${P.note?`<li>${esc(P.note)}</li>`:""}</ol></div>`;
  if (o.cierre) s += `<div class="ds">${H("Cierre comercial")}<p>${esc(fillVars(T.cierre))}</p><div class="sign"><div><b>${esc(P.by)}</b><br>${esc(P.role)} · ${esc(b.company)}<br>${esc(P.phone)}${P.email?" · "+esc(P.email):""}</div><div><b>Aceptación del cliente</b><br>${esc(P.client)}${P.nit?" · NIT "+esc(P.nit):""}<br>Nombre, firma y fecha</div></div></div>`;
  return `<div class="doc" data-page="${esc(b.page)}" style="--dc:${esc(b.primary)};--dc2:${esc(b.secondary)}">${o.cover?cover():""}<section class="pg"><div class="inner"><table class="sheet"><thead><tr><td>${docHead("Propuesta comercial")}</td></tr></thead><tbody><tr><td>${s}</td></tr></tbody><tfoot><tr><td>${docFoot()}</td></tr></tfoot></table></div></section></div>`;
@@ -1584,9 +1643,12 @@ const A = {
  delLine(d){ proj().lines.splice(+d.i,1); proj().updated = Date.now(); },
  resetCost(d){ delete proj().lines[+d.i].cost; },
  newProj(){ const cur = proj(); const svc = clone(cur.svc); svc.tarifa = null; svc.desc = 0; svc.prev = null; svc.corr = null; svc.fisico = 0; svc.costs = clone(S.svcCosts || DEF_PARAMS.svc.costs); const lab = Object.assign(clone(cur.labor), clone(S.laborBase || DEF_PARAMS.labor)); lab.days = 0;
-  const p = newProject({margins:clone(cur.margins), iva:cur.iva, fin:clone(cur.fin), svc, labor:lab}, S.brand); p.num = nextNum(); S.projects[p.id] = p; S.active = p.id; VIEW = "proyecto"; toast("Proyecto nuevo en blanco"); },
+  const p = newProject({margins:clone(cur.margins), iva:cur.iva, fin:clone(cur.fin), svc, labor:lab}, S.brand); p.num = nextNum(); delete p.kind; S.projects[p.id] = p; S.active = p.id; VIEW = "proyecto"; },
  dupProj(){ const p = clone(proj()); p.id = uid("p"); p.num = nextNum(); p.client += " (copia)"; p.history = []; p.status = "borrador"; p.updated = Date.now(); S.projects[p.id] = p; S.active = p.id; toast("Proyecto duplicado"); },
  delProj(){ arm("btnDelProj", ()=>{ if (Object.keys(S.projects).length<=1){ toast("Debe quedar al menos un proyecto"); return; } const p = S.projects[S.active]; trashOnDisk(p); delete S.projects[S.active]; S.active = Object.keys(S.projects)[0]; commit(); toast(DISK.ok?"Proyecto enviado a la papelera de la carpeta":"Proyecto eliminado"); }); return "noop"; },
+ setKind(d){ const P = proj(), was = P.kind; applyKind(P, d.k); V._kind = false; P.updated = Date.now(); if (d.k==="directa" && VIEW==="monitoreo") VIEW = "proyecto"; toast(was ? "Tipo cambiado a: "+KINDS[d.k].short : "Proyecto nuevo · "+KINDS[d.k].short); },
+ openKind(){ V._kind = true; },
+ closeKind(){ V._kind = false; },
  openProj(d){ S.active = d.id; VIEW = "proyecto"; window.scrollTo(0,0); },
  pickFolder(){ pickFolder(); return "noop"; },
  reconnect(){ reconnect(); return "noop"; },
