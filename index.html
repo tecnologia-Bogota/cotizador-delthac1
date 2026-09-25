@@ -142,11 +142,20 @@ details.prof .pbody{padding:12px 14px;display:flex;flex-direction:column;gap:14p
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
 .seg button{all:unset;cursor:pointer;padding:6px 10px;font:600 12.5px var(--f-head);letter-spacing:.05em;text-transform:uppercase}
 .seg button.on{background:var(--brand);color:#fff}
+.savebox{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:8px 14px;border-right:1px solid var(--line2)}
+.savebox .btn{min-width:118px;justify-content:center}.warnt{color:var(--warn);font-weight:600}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:#999}.dot.ok{background:#3CCB7F}.dot.warn{background:#F0B429}.dot.crit{background:#F07A6E}
 #diskBadge{margin-bottom:6px;color:#D8D5D6;font-size:12px}
 .linkbtn{all:unset;cursor:pointer;color:#D8D5D6;font-size:12px}.linkbtn:hover{color:#fff;text-decoration:underline}.linkbtn:focus-visible{outline:2px solid #fff}
 .note.ok{border-left-color:var(--ok)}.note.warn{border-left-color:var(--warn)}.note.crit{border-left-color:var(--crit)}
 table.t tr.cur td{background:var(--brand-soft)}
+table.t tr.autol td{background:var(--surface2)}
+.agenda td .row{flex-wrap:nowrap}
+.agenda h3{font:700 12px var(--f-head);letter-spacing:.08em;text-transform:uppercase;margin:0;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--line2)}
+.agenda h3.late{color:var(--crit)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.log li{border-left:2px solid var(--line);padding-left:10px}.log time{display:block;font-size:11.5px;color:var(--muted)}
+a.wa{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
 .late{color:var(--crit);font-weight:600}
 ul.dl{margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
 .dk{display:inline-block;width:18px;font-weight:700;color:var(--brand-text)}
@@ -223,6 +232,7 @@ tr.diffrow td{background:var(--surface2)}
 .doc table.dtb tr.t td{font:700 11pt var(--f-head);border-top:2px solid var(--dc2);background:#fff}
 .doc table.dtb tr.T td{font:700 12pt var(--f-head);background:var(--dc);color:#fff}
 .doc .ck{display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;font-size:9.5pt}
+.doc .ck div.nock::before{content:none}
 .doc .ck div::before{content:"✓";color:var(--dc);font-weight:700;margin-right:7px}
 .doc .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;break-inside:avoid}
 .doc .sign div{border-top:1px solid #1E1C1D;padding-top:6px;font-size:9pt}
@@ -486,12 +496,23 @@ const DEF_BRAND = {company:"DELTHAC 1 SEGURIDAD LTDA",short:"DELTHAC SEGURIDAD",
  primary:"#7F001B",secondary:"#2A2A30",logo:DEFAULT_LOGO,cover:DEFAULT_COVER,coverMode:"image",coverPos:"tl",coverTitle:"Propuesta económica",coverSub:"Solución integral de seguridad",page:"letter",
  by:"Edisson Macias",role:"Ingeniero",phone:"310 886 4803",advEmail:""};
 
+// Monitoreo: valores fijos por modalidad (plantilla "valor de servicio de monitoreo")
+const DEF_SVC_MODES = {
+ virtual:{name:"Portería virtual / monitoreo", tarifa:150000, prev:3, corr:5},
+ hibrido:{name:"Híbrido: virtual + vigilancia física", tarifa:120000, prev:1, corr:4}
+};
+// Licencias automáticas: la licencia de proyecto incluye 1 terminal de 8"; desde la 2.ª se cobra la adicional
+const DEF_LIC_RULES = [{id:"hipcam", name:"Licencias Hipcam (terminales smart intercom)", on:true, base:"n12", baseTriggers:["n1"], extra:"n13", extraTriggers:["n1"], included:1}];
+const DEF_WA = "Hola {contacto}, le saluda {asesor} de {empresa}. Quería saber si pudo revisar la propuesta {num} para {cliente} por {total}. Quedo atento a sus comentarios o a cualquier ajuste que necesite.";
+const DEF_CHECKLIST = ["Equipos instalados, fijados y rotulados según plano","Cableado probado y certificado; canalización cerrada y marcada","Cámaras con imagen, enfoque, IR y grabación verificados","Control de acceso: aperturas, usuarios de prueba y registro de eventos","Alarma: zonas, sirena, comunicador y reporte a central verificados","Respaldo eléctrico probado (corte de energía)","Configuración respaldada y contraseñas entregadas al administrador","Capacitación al personal del edificio","Registro fotográfico antes y después","Área de trabajo limpia"];
+const LOST_REASONS = [["precio","Precio"],["competencia","Eligió a la competencia"],["presupuesto","Sin presupuesto"],["tiempo","No decidió / aplazó"],["alcance","Alcance técnico"],["otro","Otro"]];
+
 // Parámetros de la empresa: se copian a cada proyecto nuevo (todos editables por proyecto)
 const DEF_PARAMS = {
  margins:{eq:23,mat:23,mo:23,min:20}, iva:19,
- fin:{rate:1.2,nA:24,nB:3,aiu:10,base:"sin",bNoInt:false},
+ fin:{rate:1.2,nA:24,nB:3,aiu:10,base:"sin",bNoInt:true},
  labor:{tech:2,rate:120000,hpd:8,days:0,transport:0,imprev:0},
- svc:{mode:"virtual",tarifa:0,aiu:10,adm:9.12,vta:0.62,desc:0,prev:0,corr:0,visita:201347.5,maintSrc:"contrato",fisico:0,fisicoName:"Servicio de vigilancia física 12 h diurno, lunes a domingo",
+ svc:{mode:"virtual",tarifa:null,aiu:10,adm:9.12,vta:0.62,desc:0,prev:null,corr:null,visita:201347.5,maintSrc:"contrato",fisico:0,fisicoName:"Servicio de vigilancia física 12 h diurno, lunes a domingo",
   costs:[{n:"Operador portería virtual",mode:"apto",v:0,q:0},{n:"Operador monitoreo y seguridad",mode:"apto",v:73623.96,q:0},{n:"Licencia Intelbras",mode:"fijo",v:256000,q:0},{n:"Licencia Hipcam",mode:"fijo",v:0,q:0},{n:"Licencia Softguard",mode:"apto",v:2500,q:0},{n:"Capacitación (prorrateo mensual)",mode:"fijo",v:26998,q:0},{n:"Plan de datos",mode:"fijo",v:10000,q:0},{n:"Reacciones alarmas",mode:"fijo",v:426557,q:0}]}
 };
 
@@ -505,7 +526,7 @@ function newProject(params, brand){
   margins:pr.margins, iva:pr.iva, utp:"utp5i", fin:pr.fin, svc:pr.svc, labor:pr.labor,
   lines:[], conduit:{}, cpct:{}, madj:{}, moff:{}, inclMaint:false,
   status:"borrador", next:"", follow:"", history:[], updated:Date.now(),
-  pdf:{cover:true,present:true,diag:true,sol:true,modelo:true,eco:true,equipos:true,unit:true,mats:false,serv:true,cond:true,cierre:true,fin:true,svc:true,ahorro:true}
+  pdf:{cover:true,present:true,diag:true,sol:true,modelo:true,eco:true,equipos:true,unit:true,mats:false,serv:true,cond:true,cierre:true,fin:true,svc:true,ahorro:true,plan:true}
  };
 }
 function defaults(){
@@ -559,25 +580,37 @@ function upgrade(st){
   st.derived = (st.derived||[]).filter(d=>!(["chazo14","tgol"].includes(d.m) && /^(emtg|raw|pvca)/.test(d.src)));
  }
  Object.values(st.tubeKits).forEach(ks=>ks.forEach(k=>{ k.r ||= "abajo"; }));
+ st.svcModes ||= clone(DEF_SVC_MODES); st.licRules ||= clone(DEF_LIC_RULES); st.licRules.forEach(r=>{ if (r.id==="hipcam" && r.base==="n11"){ r.base = "n12"; r.extra = "n13"; } }); st.brand.wa ||= DEF_WA; st.texts.checklist ||= clone(DEF_CHECKLIST);
+ st.svcCosts ||= clone(DEF_PARAMS.svc.costs);
+ if (!st.patches.includes("monitoreo-fijo-v6")){
+  Object.values(st.projects).forEach(p=>{ if (!p.svc) return; if (!+p.svc.tarifa) p.svc.tarifa = null; if (!+p.svc.prev) p.svc.prev = null; if (!+p.svc.corr) p.svc.corr = null; if (p.fin && !p.lines.length) p.fin.bNoInt = true; });
+  st.patches.push("monitoreo-fijo-v6");
+ }
  if (!st.patches.includes("precios-2026-09-25")){
   st.catalog.forEach(c=>{ const p = PATCH_0925.set[c.id]; if (p) Object.assign(c, p); });
   PATCH_0925.add.forEach(c=>{ if (!st.catalog.some(x=>x.id===c.id || x.ref===c.ref)) st.catalog.push(clone(c)); });
   st.patches.push("precios-2026-09-25");
  }
- Object.values(st.projects).forEach(p=>{ p.status ||= "borrador"; p.history ||= []; p.next ||= ""; p.follow ||= ""; p.updated ||= Date.now(); p.cpct ||= {}; });
+ Object.values(st.projects).forEach(p=>{ if (p.pdf) p.pdf.plan ??= true; p.log ||= []; p.cphone ??= ""; p.lostReason ??= ""; p.lostNote ??= ""; if (!p.savedHash && p.history && p.history.length) p.savedHash = projHash(p); p.status ||= "borrador"; p.history ||= []; p.next ||= ""; p.follow ||= ""; p.updated ||= Date.now(); p.cpct ||= {}; });
 }
 let saveT, dirty = {cfg:true, proj:new Set()};
 function save(){
  clearTimeout(saveT);
  $("#saveState").textContent = "Guardando…";
- saveT = setTimeout(async ()=>{
+ saveT = setTimeout(writeNow, 600);
+}
+async function writeNow(){
+  clearTimeout(saveT);
   const ok = await IDB.set("state", S);
   if (DISK.ok) await syncDisk();
   const t = new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"});
   $("#saveState").textContent = DISK.ok && !DISK.err ? "Guardado en carpeta “"+DISK.handle.name+"” "+t : ok ? "Guardado en este navegador "+t : "No se pudo guardar: exporte un respaldo";
   renderDiskBadge();
- }, 600);
+  return ok;
 }
+// "huella" del proyecto para saber si hay cambios sin guardar (ignora historial y fechas internas)
+function projHash(p){ const c = Object.assign({}, p); delete c.history; delete c.updated; delete c.savedHash; delete c.savedAt; const str = JSON.stringify(c); let h = 5381; for (let i=0;i<str.length;i++) h = ((h<<5) + h + str.charCodeAt(i)) | 0; return String(h); }
+const unsaved = p => !p.savedHash || p.savedHash !== projHash(p);
 async function syncDisk(all){
  try {
   const root = DISK.handle, pdir = await dirGet(root, "proyectos");
@@ -647,8 +680,8 @@ function inp(path, t="t", extra=""){
  const type = t==="n" ? "number" : t==="d" ? "date" : "text";
  return `<input type="${type}" ${t==="n"?'step="any"':""} id="${fid(path)}" data-p="${path}" data-t="${t}" value="${esc(v??"")}" ${extra}>`;
 }
-function sel(path, opts, extra=""){
- const v = getPath(path) ?? "";
+function sel(path, opts, extra="", fallback){
+ const v = getPath(path) ?? fallback ?? "";
  return `<select id="${fid(path)}" data-p="${path}" data-t="t" ${extra}>${opts.map(o=>Array.isArray(o)?`<option value="${esc(o[0])}" ${String(o[0])===String(v)?"selected":""}>${esc(o[1])}</option>`:o).join("")}</select>`;
 }
 const fld = (label, html, cls="", help="") => `<label class="f ${cls}"><span>${label}</span>${html}${help?`<small class="help">${help}</small>`:""}</label>`;
@@ -672,9 +705,21 @@ function compute(P = proj()){
   return {i, l, it, ref: l.ref ?? it?.ref ?? "", name: l.name ?? it?.name ?? "", spec: it?.spec || "", un: l.un ?? it?.un ?? "UND",
    sys: l.sys || it?.sys || S.systems[0], cost, margin, profile, qty, price, costT: cost*qty, saleT: price*qty, costOv: l.cost!=null, marOv: l.margin!=null, profOv: l.profile!==undefined};
  });
+ // licencias automáticas (no se guardan como líneas: se recalculan siempre)
+ R.autoLines = [];
+ const qtyCat = {}; P.lines.forEach(l=>{ if (l.cat) qtyCat[l.cat] = (qtyCat[l.cat]||0) + (+l.qty||0); });
+ (S.licRules||[]).forEach(r=>{
+  if (!r.on) return;
+  const tb = (r.baseTriggers||[]).reduce((a,id)=>a+(qtyCat[id]||0),0), te = (r.extraTriggers||[]).reduce((a,id)=>a+(qtyCat[id]||0),0);
+  const mk = (cid, qty, why) => { const it = cById[cid]; if (!it || qty<=0 || qtyCat[cid]) return; const cost = +it.cost||0, price = pv(cost, M.eq);
+   R.autoLines.push({i:-1, auto:true, why, l:{}, it, ref:it.ref, name:it.name, spec:it.spec||"", un:it.un||"UND", sys:it.sys, cost, margin:M.eq, profile:"", qty, price, costT:cost*qty, saleT:price*qty}); };
+  if (tb>0) mk(r.base, 1, r.name+": activación del proyecto (incluye "+num(r.included)+" terminal)");
+  if (tb>0) mk(r.extra, Math.max(0, te - (+r.included||0)), r.name+": "+num(te)+" terminales − "+num(r.included)+" incluida");
+ });
+ R.lines = R.lines.concat(R.autoLines);
  // conteo por perfil
  const cnt = R.cnt = {}; let eqUnits = 0;
- R.lines.forEach(x=>{ eqUnits += x.qty; if (x.profile && prById[x.profile]) cnt[x.profile] = (cnt[x.profile]||0) + x.qty; });
+ R.lines.forEach(x=>{ if (!x.auto) eqUnits += x.qty; if (x.profile && prById[x.profile]) cnt[x.profile] = (cnt[x.profile]||0) + x.qty; });
  R.eqUnits = eqUnits;
  // materiales
  const base = {}; const add = (mid, q, src) => { if (mid==="@UTP") mid = P.utp; if (!mid || !q) return; const b = base[mid] || (base[mid] = {q:0, src:[]}); b.q += q; b.src.push([src, q]); };
@@ -755,6 +800,8 @@ function compute(P = proj()){
  R.finBase = fb; R.planA = plan(F.nA); R.planB = plan(F.nB, F.bNoInt);
  const amort = []; let sal = fb; for (let k=1;k<=R.planA.n;k++){ const it = sal*rate, cap = R.planA.cuota - it, fin = sal - cap; amort.push({k, ini:sal, it, cap, c:R.planA.cuota, fin}); sal = fin; }
  R.amort = amort;
+ const amortOf = pl => { const out = []; let sl = fb; const r = pl.noInt ? 0 : rate; for (let k=1;k<=pl.n;k++){ const it = sl*r, cap = pl.cuota - it, f = sl - cap; out.push({k, ini:sl, it, cap, c:pl.cuota, iva:pl.ivaC, tot:pl.fin, fin:f}); sl = f; } return out; };
+ R.amortA = amortOf(R.planA); R.amortB = amortOf(R.planB);
  // ===== monitoreo (plantilla "valor de servicio de monitoreo") =====
  R.svc = monitoring(P, R);
  R.monthA = R.svc.final + R.planA.fin*(1-(+P.svc.desc||0)/100); R.monthB = R.svc.final + R.planB.fin*(1-(+P.svc.desc||0)/100);
@@ -764,10 +811,13 @@ function compute(P = proj()){
 function monitoring(P, R){
  const V = P.svc, u = +P.units||0, uD = Math.max(1,u), plazo = Math.max(1, +P.contract||0);
  const ivaEf = (+(V.aiu ?? 10)) * (+P.iva||0) / 100;
- const base = u*(+V.tarifa||0);
+ const md = (S.svcModes||DEF_SVC_MODES)[V.mode] || DEF_SVC_MODES.virtual;
+ const tarifa = (V.tarifa!=null && V.tarifa!=="") ? +V.tarifa : +md.tarifa;
+ const nPrev = (V.prev!=null && V.prev!=="") ? +V.prev : +md.prev, nCorr = (V.corr!=null && V.corr!=="") ? +V.corr : +md.corr;
+ const base = u*tarifa;
  const lines = V.costs.map((c,i)=>{ const v = +c.v||0, val = c.mode==="apto" ? v*u : c.mode==="cant" ? v*(+c.q||0) : v; return {i, n:c.n, mode:c.mode, v, q:+c.q||0, val}; });
- const mPrev = V.maintSrc==="equipos" ? R.prev/12 : (+V.visita||0)*(+V.prev||0)/12;
- const mCorr = V.maintSrc==="equipos" ? R.corr/12 : (+V.visita||0)*(+V.corr||0)/12;
+ const mPrev = V.maintSrc==="equipos" ? R.prev/12 : (+V.visita||0)*nPrev/12;
+ const mCorr = V.maintSrc==="equipos" ? R.corr/12 : (+V.visita||0)*nCorr/12;
  lines.push({n:"Mantenimiento preventivo (mensual)", auto:true, val:mPrev}, {n:"Mantenimiento correctivo (mensual)", auto:true, val:mCorr});
  const cSum = lines.reduce((a,c)=>a+c.val,0);
  const eqMonth = R.cost>0 ? (R.eqCost + R.matCost + R.moCost) / plazo : 0; // costo de implementación amortizado en el plazo del contrato
@@ -779,7 +829,7 @@ function monitoring(P, R){
  const fis = V.mode==="hibrido" ? (+V.fisico||0) : 0;
  const bill = +P.bill||0;
  const propEq = base + eqIng + fis, propSolo = base + fis;
- return {u, uD, plazo, ivaEf, base, iva: base*ivaEf/100, final: base*(1+ivaEf/100), lines, cSum, mPrev, mCorr, eqMonth, solo, con, fis, bill,
+ return {u, uD, plazo, ivaEf, base, tarifa, nPrev, nCorr, modeName: md.name, tarOv: V.tarifa!=null && V.tarifa!=="", iva: base*ivaEf/100, final: base*(1+ivaEf/100), lines, cSum, mPrev, mCorr, eqMonth, solo, con, fis, bill,
   propEq, propSolo, ahorroEq: bill - propEq, ahorroEqPct: bill ? (bill-propEq)/bill : 0, ahorroSolo: bill - propSolo, ahorroSoloPct: bill ? (bill-propSolo)/bill : 0,
   gross: solo.gross, grossPct: solo.grossPct, adm: solo.adm, vta: solo.vta, op: solo.op, opPct: solo.opPct};
 }
@@ -790,7 +840,7 @@ function audit(P, R){
  add(R.lines.length ? "ok":"info", "Equipos cotizados", R.lines.length+" líneas · "+num(R.eqUnits)+" und", "Agregue equipos en Cotización");
  const noCost = R.lines.filter(x=>!x.cost);
  add(noCost.length?"crit":"ok","Líneas sin costo", noCost.length ? noCost.map(x=>x.name||x.ref).join(", ") : "0", "Complete el costo en Catálogo o en la línea");
- const noProf = R.lines.filter(x=>!x.profile);
+ const noProf = R.lines.filter(x=>!x.profile && !x.auto && x.sys!=="OBRAS Y SERVICIOS");
  add(noProf.length?"warn":"ok","Líneas sin regla técnica (no generan materiales ni instalación)", noProf.length? noProf.map(x=>x.name||x.ref).join(", ") : "0", "Asigne una regla por equipo");
  const matNoCost = R.bom.filter(r=>r.fin>0 && !r.m.cost);
  add(matNoCost.length?"crit":"ok","Materiales activos sin costo", matNoCost.length ? matNoCost.map(r=>r.m.name).join(", ") : "0", "Complete costo unitario en Materiales");
@@ -833,8 +883,9 @@ function render(){
  $("#view").innerHTML = (V[VIEW]||V.proyecto)();
 }
 function renderKpis(){
- const P = proj(), ok = R.margin*100 >= (+P.margins.min||0) - 1e-6;
+ const P = proj(), ok = R.margin*100 >= (+P.margins.min||0) - 1e-6, un = unsaved(P);
  $("#kpis").innerHTML = `<div class="proj"><b>${esc(P.client||"Proyecto sin nombre")}</b><span>${esc(P.num)} · ${fmtDate(P.date)} · ${num(R.eqUnits)} equipos</span></div>
+ <div class="savebox"><button class="btn ${un?"pri":""}" data-act="saveProj" id="btnSave" title="Guarda la cotización y deja una versión en el historial (Ctrl + S)">${un?"Guardar":"Guardado ✓"}</button><span class="small ${un?"warnt":"muted"}">${un?"Cambios sin guardar":(P.savedAt?"Última vez "+fmtDT(P.savedAt):"")}</span></div>
  <div class="kpi"><span class="l">Costo total</span><span class="v">${money(R.cost)}</span></div>
  <div class="kpi"><span class="l">Venta sin IVA</span><span class="v">${money(R.sub)}</span></div>
  <div class="kpi"><span class="l">IVA ${num(P.iva)} %</span><span class="v">${money(R.iva)}</span></div>
@@ -900,7 +951,7 @@ V.proyectos = () => {
  const tr = rows.map(({p,s})=>{ const late = p.next && p.next < today() && !["aprobada","perdida"].includes(p.status);
   return `<tr class="${p.id===S.active?"cur":""}"><td class="mono">${esc(p.num)}</td><td><a href="#" data-act="openProj" data-id="${p.id}"><b>${esc(p.client||"Sin nombre")}</b></a><div class="src">${esc([p.contact,p.city].filter(Boolean).join(" · "))}</div></td>
   <td>${stPill(p.status)}</td><td class="n">${money(s.total)}</td><td class="n">${s.sub?pct(s.margin):"—"}</td><td class="n">${num(s.units)}</td>
-  <td class="small">${p.next?`<span class="${late?"late":""}">${fmtDate(p.next)}</span>`:"—"}</td><td class="n">${(p.history||[]).length}</td><td class="small muted">${fmtDT(p.updated||Date.now())}</td>
+  <td class="small">${p.next?`<span class="${late?"late":""}">${fmtDate(p.next)}</span>`:"—"}${p.status==="perdida"&&p.lostReason?`<div class="src">${esc((LOST_REASONS.find(r=>r[0]===p.lostReason)||[,""])[1])}</div>`:""}</td><td class="n">${(p.history||[]).length}</td><td class="small muted">${fmtDT(p.updated||Date.now())}</td>
   <td class="n"><button class="btn sm" data-act="openProj" data-id="${p.id}">Abrir</button></td></tr>`; }).join("");
  const diskCard = DISK.ok ? `<div class="note ok"><b>Sus datos están a salvo en la carpeta “${esc(DISK.handle.name)}”.</b> Cada cambio se guarda como archivo JSON por proyecto, con un respaldo completo diario (últimos 30 días). Si borra el historial del navegador, abra la app y elija la misma carpeta para recuperarlo todo.</div>`
   : DISK.handle ? `<div class="note warn"><b>La carpeta de datos está vinculada pero el navegador pide permiso de nuevo.</b> <button class="btn sm pri" data-act="reconnect">Reconectar carpeta</button></div>`
@@ -916,6 +967,7 @@ V.proyectos = () => {
   <div class="tile"><span class="l">Tasa de cierre</span><span class="v">${won+lost?pct(won/(won+lost)):"—"}</span><span class="s">${won} ganadas · ${lost} perdidas</span></div>
   <div class="tile"><span class="l">Borradores</span><span class="v">${by("borrador").length}</span><span class="s">${money(sum(by("borrador")))}</span></div>
  </div>
+ ${agendaPanel()}
  <div class="panel"><div class="ph"><h2>Cotizaciones (${all.length})</h2><div class="row"><input type="text" id="projQ" placeholder="Buscar cliente, N°, ciudad…" value="${esc(V._pq||"")}" style="width:220px">
   <select id="projF"><option value="">Todos los estados</option>${STATUS.map(s=>`<option value="${s[0]}" ${f===s[0]?"selected":""}>${s[1]}</option>`).join("")}</select></div></div>
  <div class="tw"><table class="t"><thead><tr><th>N°</th><th>Cliente</th><th>Estado</th><th class="n">Total con IVA</th><th class="n">Margen</th><th class="n">Equipos</th><th>Próxima gestión</th><th class="n">Versiones</th><th>Modificado</th><th></th></tr></thead><tbody>${tr || `<tr><td colspan="10"><div class="empty"><b>No hay proyectos con ese filtro</b></div></td></tr>`}</tbody></table></div></div>`;
@@ -929,17 +981,48 @@ function historyPanel(){
    extra = `<tr class="diffrow"><td colspan="6"><div class="small"><b>Esa versión:</b> ${money(h.sum.total)} · margen ${pct(h.sum.margin)} · ${num(h.sum.units)} equipos &nbsp;→&nbsp; <b>Ahora:</b> ${money(d.cur.total)} · margen ${pct(d.cur.margin)} · ${num(d.cur.units)} equipos (${d.cur.total-h.sum.total>=0?"+":""}${money(d.cur.total-h.sum.total)})</div>
     ${d.out.length?`<ul class="dl">${d.out.map(([k,n,t])=>`<li><span class="dk">${k}</span>${esc(n)} — <span class="muted">${esc(t)}</span></li>`).join("")}</ul>`:`<div class="small muted">Mismos equipos y cantidades. Las diferencias vienen de precios, reglas o parámetros.</div>`}</td></tr>`; }
   return `<tr><td class="small">${fmtDT(h.at)}</td><td>${esc(h.note)}${h.auto?` <span class="small muted">(automática)</span>`:""}</td><td>${stPill(h.status)}</td><td class="n">${money(h.sum.total)}</td><td class="n">${pct(h.sum.margin)}</td>
-  <td class="n"><button class="btn sm ghost" data-act="diffV" data-id="${h.id}">${open===h.id?"Ocultar":"Comparar"}</button><button class="btn sm" data-act="restoreV" data-id="${h.id}" id="rv_${h.id}">Restaurar</button><button class="btn sm ghost" data-act="forkV" data-id="${h.id}">Copiar como nuevo</button></td></tr>${extra}`; }).join("");
- return `<div class="panel"><div class="ph"><h2>Historial de versiones</h2><div class="row"><input type="text" id="verNote" placeholder="Nota: p. ej. “Ajuste por visita técnica”" style="width:260px"><button class="btn sm pri" data-act="saveVersion">Guardar versión</button></div></div>
- <div class="tw"><table class="t"><thead><tr><th>Fecha</th><th>Nota</th><th>Estado</th><th class="n">Total</th><th class="n">Margen</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted small">Aún no hay versiones. Pulse “Guardar versión” (o Ctrl + S) cada vez que quiera dejar una foto de la cotización. Al exportar el PDF o cambiar el estado se guarda una versión automática.</td></tr>`}</tbody></table></div></div>`;
+  <td class="n"><button class="btn sm ghost" data-act="diffV" data-id="${h.id}">${open===h.id?"Ocultar":"Comparar"}</button><button class="btn sm" data-act="restoreV" data-id="${h.id}" id="rv_${h.id}">Restaurar</button><button class="btn sm ghost" data-act="forkV" data-id="${h.id}">Copiar como nuevo</button><button class="btn sm ghost danger" data-act="delV" data-id="${h.id}" id="dv_${h.id}" title="Borrar esta versión">Borrar</button></td></tr>${extra}`; }).join("");
+ return `<div class="panel"><div class="ph"><h2>Historial de versiones</h2><div class="row"><input type="text" id="verNote" placeholder="Nota: p. ej. “Ajuste por visita técnica”" style="width:260px"><button class="btn sm pri" data-act="saveVersion">Guardar versión</button>${H.some(h=>h.auto)?`<button class="btn sm danger" data-act="delAutoV" id="btnDelAuto">Borrar automáticas</button>`:""}</div></div>
+ <div class="tw"><table class="t"><thead><tr><th>Fecha</th><th>Nota</th><th>Estado</th><th class="n">Total</th><th class="n">Margen</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted small">Aún no hay versiones. Pulse “Guardar” arriba (o Ctrl + S) cada vez que quiera dejar una foto de la cotización. Al exportar el PDF o cambiar el estado se guarda una versión automática.</td></tr>`}</tbody></table></div></div>`;
 }
+function waLink(p){
+ const d = String(p.cphone||"").replace(/\D/g,""); if (d.length < 7) return "";
+ const num57 = d.length===10 ? "57"+d : d;
+ const r = compute(p), b = S.brand;
+ const txt = String(b.wa||DEF_WA).replace(/\{(\w+)\}/g,(m,k)=>({contacto:p.contact||"", cliente:p.client||"", num:p.num, total:money(r.total), asesor:p.by||b.by||"", empresa:b.short||b.company, fecha:fmtDate(p.date)}[k] ?? m));
+ return "https://wa.me/"+num57+"?text="+encodeURIComponent(txt);
+}
+const waBtn = (p, cls="btn sm") => { const u = waLink(p); return u ? `<a class="${cls} wa" href="${u}" target="_blank" rel="noopener">WhatsApp</a>` : ""; };
+const addDays = (n) => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
 function statusPanel(){
- const P = proj();
- return `<div class="panel"><div class="ph"><h2>Estado y seguimiento</h2>${stPill(P.status)}</div><div class="pb grid">
-  ${fld("Estado comercial", `<select id="f_status" data-status="1">${STATUS.map(s=>`<option value="${s[0]}" ${P.status===s[0]?"selected":""}>${s[1]}</option>`).join("")}</select>`, "", "Al cambiarlo se guarda una versión automática.")}
-  ${fld("Próxima gestión", inp("P.next","d"), "", "Fecha para llamar o visitar al cliente. Si se vence, se resalta en Proyectos.")}
-  ${fld("Notas de seguimiento", inp("P.follow","area"), "wide")}
+ const P = proj(), L = P.log || [];
+ const lost = P.status==="perdida";
+ return `<div class="panel"><div class="ph"><h2>Estado y seguimiento</h2><div class="row">${stPill(P.status)}${waBtn(P)}${P.status==="aprobada"?`<button class="btn sm pri" data-act="printOT">Orden de trabajo PDF</button><button class="btn sm" data-act="exportOT">Exportar OT (JSON)</button>`:""}</div></div><div class="pb grid">
+  ${fld("Estado comercial", `<select id="f_status" data-status="1">${STATUS.map(s=>`<option value="${s[0]}" ${P.status===s[0]?"selected":""}>${s[1]}</option>`).join("")}</select>`, "", "Al cambiarlo se guarda una versión automática. En “Aprobada” se habilita la orden de trabajo.")}
+  ${fld("Próxima gestión", inp("P.next","d"), "", "Si se vence, aparece en rojo en la agenda de Proyectos.")}
+  ${fld("Teléfono / WhatsApp del cliente", inp("P.cphone","t",'placeholder="300 123 4567"'), "", "Para el botón de WhatsApp con el mensaje de seguimiento listo.")}
+  ${lost?fld("Motivo de pérdida", sel("P.lostReason", [["","— Seleccione —"]].concat(LOST_REASONS)))+fld("Detalle", inp("P.lostNote","t",'placeholder="Ej.: competencia cotizó 12 % menos"'), "wide"):""}
+ </div>
+ <div class="pb" style="border-top:1px solid var(--line2)"><p class="subh">Registrar gestión</p><div class="row">
+  <input type="text" id="logText" placeholder="Qué pasó: llamé, envié propuesta, visita técnica…" style="flex:1;min-width:220px">
+  <select id="logNext"><option value="3">Próxima en 3 días</option><option value="7" selected>Próxima en 1 semana</option><option value="14">Próxima en 2 semanas</option><option value="0">Sin próxima gestión</option></select>
+  <button class="btn sm pri" data-act="addLog">Registrar</button></div>
+  ${L.length?`<ul class="log" style="margin-top:12px">${L.slice(0,12).map(g=>`<li><time>${fmtDT(g.at)}</time>${esc(g.text)}</li>`).join("")}</ul>`:""}
+  ${fld("Notas generales", inp("P.follow","area",'style="min-height:54px"'), "wide")}
  </div></div>`;
+}
+function agendaPanel(){
+ const t = today(), wk = addDays(7);
+ const open = Object.values(S.projects).filter(p=>p.next && !["aprobada","perdida"].includes(p.status));
+ const groups = [["late","Vencidas",p=>p.next<t],["","Hoy",p=>p.next===t],["","Próximos 7 días",p=>p.next>t && p.next<=wk]];
+ const row = p => { const r = compute(p), last = (p.log||[])[0]; return `<tr><td><a href="#" data-act="openProj" data-id="${p.id}"><b>${esc(p.client||"Sin nombre")}</b></a><div class="src">${esc(p.num)}${last?" · "+esc(last.text):""}</div></td><td>${stPill(p.status)}</td><td class="n">${money(r.total)}</td><td class="small">${fmtDate(p.next)}</td>
+  <td class="n"><div class="row" style="justify-content:flex-end">${waBtn(p,"btn sm ghost")}<button class="btn sm ghost" data-act="snooze" data-id="${p.id}" data-d="3">+3 días</button><button class="btn sm ghost" data-act="snooze" data-id="${p.id}" data-d="7">+7 días</button><button class="btn sm" data-act="openProj" data-id="${p.id}">Abrir</button></div></td></tr>`; };
+ const html = groups.map(([cls,title,fn])=>{ const ps = open.filter(fn).sort((a,b)=>a.next<b.next?-1:1); if (!ps.length) return ""; return `<h3 class="${cls}">${title} (${ps.length})</h3><div class="tw"><table class="t"><tbody>${ps.map(row).join("")}</tbody></table></div>`; }).join("");
+ const lostP = Object.values(S.projects).filter(p=>p.status==="perdida");
+ const reasons = LOST_REASONS.map(([k,n])=>{ const ps = lostP.filter(p=>p.lostReason===k); return ps.length?`<tr><td>${n}</td><td class="n">${ps.length}</td><td class="n">${money(ps.reduce((a,p)=>a+compute(p).total,0))}</td></tr>`:""; }).join("");
+ const noR = lostP.filter(p=>!p.lostReason).length;
+ return `<div class="panel agenda"><div class="ph"><h2>Agenda de seguimiento</h2><span class="hint">Gestiones pendientes de cotizaciones abiertas</span></div>${html || `<div class="pb small muted">No hay gestiones pendientes para esta semana. Ponga una fecha de “Próxima gestión” en cada cotización enviada.</div>`}</div>
+ <div class="panel"><div class="ph"><h2>¿Por qué se pierden?</h2><span class="hint">${lostP.length} cotizaciones perdidas</span></div>${reasons||noR?`<div class="tw"><table class="t"><thead><tr><th>Motivo</th><th class="n">Cant</th><th class="n">Valor</th></tr></thead><tbody>${reasons}${noR?`<tr class="dim"><td>Sin motivo registrado</td><td class="n">${noR}</td><td></td></tr>`:""}</tbody></table></div>`:`<div class="pb small muted">Cuando marque una cotización como perdida, registre el motivo para ver aquí el patrón.</div>`}</div>`;
 }
 
 V.proyecto = () => {
@@ -1005,12 +1088,13 @@ V.cotizacion = () => {
   const sc = ls.reduce((a,x)=>a+x.costT,0), sv = ls.reduce((a,x)=>a+x.saleT,0);
   body += `<tr class="grp"><td colspan="11">${esc(s)}</td></tr>`;
   ls.forEach(x=>{
+   if (x.auto){ body += `<tr class="autol"><td><span class="mono">${esc(x.ref)}</span></td><td><div>${esc(x.name)}</div><div class="src">Automática · ${esc(x.why)}</div></td><td class="small muted">${esc(x.sys)}</td><td class="small muted">Regla de licencias</td><td class="n"><b>${num(x.qty)}</b></td><td class="n">${money(x.cost)}</td><td class="n">${num(x.margin)}</td><td class="n">${money(x.price)}</td><td class="n"><b>${money(x.saleT)}</b></td><td class="n muted">${money(x.costT)}</td><td></td></tr>`; return; }
    const b = "P.lines."+x.i;
    const refCell = x.it ? `<span class="mono">${esc(x.ref)}</span>` : inp(b+".ref","t",'placeholder="Referencia"');
    const nameCell = x.it ? `<div>${esc(x.name)}</div>` : inp(b+".name","t",'placeholder="Descripción"');
    body += `<tr>
     <td>${refCell}</td><td style="min-width:220px">${nameCell}</td>
-    <td>${sel(b+".sys", sysOpts, 'class="sys"')}</td>
+    <td>${sel(b+".sys", sysOpts.some(o=>o[0]===x.sys)?sysOpts:sysOpts.concat([[x.sys,x.sys]]), 'class="sys"', x.sys)}</td>
     <td>${sel(b+".profile", profOptions(!!x.it, x.it?.profile).map(o=>o), 'class="prf"')}</td>
     <td class="n">${inp(b+".qty","n",'class="w60" min="0"')}</td>
     <td class="n"><input type="number" step="any" id="${fid(b+".cost")}" data-p="${b}.cost" data-t="n" data-null="1" value="${x.cost}" ${x.costOv?'style="border-color:var(--warn)"':""} title="${x.costOv?"Costo modificado solo en esta cotización":"Costo del catálogo"}">${x.costOv&&x.it?`<button class="x" title="Volver al costo del catálogo" data-act="resetCost" data-i="${x.i}">↺</button>`:""}</td>
@@ -1123,6 +1207,14 @@ V.reglas = () => {
   <div class="tw"><table class="t"><thead><tr><th>${esc(tubeShort(R.mById[sim]))}</th>${N.map(n=>`<th class="n">${n} ${n===1?"tubo":"tubos"}</th>`).join("")}</tr></thead><tbody>${simRows}</tbody></table></div>`:""}
   </div>`;
  }).join("") + `<div class="panel"><div class="ph"><h2>Materiales de fijación</h2><span class="hint">Se usan para grapas, cajas y demás accesorios de tubería</span></div><div class="pb">${fixSel}</div></div>`;
+ const catSel = (path) => { const v = getPath(path) ?? ""; return `<select id="${fid(path)}" data-p="${path}" data-t="t"><option value="">—</option>${S.catalog.map(c=>`<option value="${c.id}" ${c.id===v?"selected":""}>${esc(c.name)} — ${esc(c.ref)}</option>`).join("")}</select>`; };
+ const chips = (i, key) => (S.licRules[i][key]||[]).map((id,j)=>`<span class="chip">${esc(S.catalog.find(c=>c.id===id)?.name||id)} <button class="x" style="width:18px;height:18px" data-act="delLicT" data-i="${i}" data-k="${key}" data-j="${j}" title="Quitar">×</button></span>`).join("") || `<span class="muted small">Ninguno</span>`;
+ const addT = (i, key) => `<select data-lict="${i}|${key}" id="lict_${i}_${key}" style="max-width:320px"><option value="">+ Agregar equipo…</option>${S.catalog.filter(c=>!(S.licRules[i][key]||[]).includes(c.id)).map(c=>`<option value="${c.id}">${esc(c.name)} — ${esc(c.ref)}</option>`).join("")}</select>`;
+ const lics = (S.licRules||[]).map((r,i)=>{ const b = "S.licRules."+i; return `<div class="panel"><div class="ph"><h2 style="font-size:14px">${esc(r.name)}</h2><label class="row small">${inp(b+".on","b")}<span>Activa</span></label></div><div class="pb" style="display:flex;flex-direction:column;gap:12px">
+  <div class="grid">${fld("Nombre de la regla", inp(b+".name"))}${fld("Licencia única de activación", catSel(b+".base"), "", "Se agrega 1 cuando el proyecto lleva cualquiera de los equipos que la activan.")}${fld("Licencia adicional", catSel(b+".extra"))}${fld("Terminales incluidas en la licencia única", inp(b+".included","n"))}</div>
+  <div><p class="subh">Equipos que activan la licencia única</p><div class="row">${chips(i,"baseTriggers")}${addT(i,"baseTriggers")}</div></div>
+  <div><p class="subh">Equipos que cuentan para licencias adicionales</p><div class="row">${chips(i,"extraTriggers")}${addT(i,"extraTriggers")}</div><p class="small muted" style="margin:6px 0 0">Adicionales = equipos que cuentan − ${num(r.included)} incluida(s). Ejemplo: 4 terminales de 8" → 1 licencia única + 3 adicionales.</p></div>
+ </div></div>`; }).join("");
  const der = S.derived.map((d,j)=>{ const b = "S.derived."+j; return `<tr class="${d.on?"":"dim"}"><td>${inp(b+".on","b")}</td><td>${selMat(b+".src", [["@EQ","Total equipos instalados"],["@TUBOS","Total tubos (todas las medidas)"]])}</td><td class="n">${inp(b+".n","n",'class="w60"')}</td><td>${selMat(b+".m")}</td><td class="n">${inp(b+".q","n",'class="w60"')}</td><td class="n"><b>${num(R.derivedRes[j]||0)}</b></td><td>${inp(b+".note")}</td><td><button class="x" data-act="delDR" data-j="${j}">×</button></td></tr>`; }).join("");
  const res = S.reserves.map((r,i)=>`<tr><td>${inp("S.reserves."+i+".name")}</td><td class="n">${inp("S.reserves."+i+".pct","n",'class="w60"')} %</td><td class="small muted">${S.materials.filter(m=>m.res===r.id).length} materiales</td></tr>`).join("");
  const lin = Object.entries(S.linear).map(([k,L])=>`<tr><td>${esc(L.name)}</td><td class="n">${inp("S.linear."+k+".rate","n")}</td><td class="n">${inp("S.linear."+k+".h","n",'class="w60"')}</td><td class="n">${num(R.lin[k])} m</td></tr>`).join("");
@@ -1131,6 +1223,7 @@ V.reglas = () => {
  <div class="note">Canalización: <b>cantidad = grupos de N tubos × cantidad</b>. Con “grupos completos”, el accesorio aparece al completar el grupo (1 tubo no lleva unión; 2 tubos sí). Con “cualquier fracción”, un tubo suelto ya cuenta como grupo. EMT: cada tubo lleva 2 grapas doble ojo (4 chazos y 4 tornillos de 1/4"); cada 2 tubos, 1 unión; cada 3 tubos, 1 caja Rawelt 5800 y 2 terminales. Chazos y tornillos se suman por cada grapa y cada caja. Todo sale de la misma medida del tubo elegido.</div>
  <div class="panel"><div class="ph"><h2>1 · Reglas por equipo</h2><span class="hint">${S.profiles.length} reglas · abra una para editar materiales, tubería, instalación y mantenimiento</span></div><div class="pb">${profs}</div></div>
  <div style="display:flex;flex-direction:column;gap:12px"><h2 class="vt" style="font-size:20px;margin:6px 0 0">2 · Canalización por tubo</h2>${tubes}</div>
+ <div style="display:flex;flex-direction:column;gap:12px"><h2 class="vt" style="font-size:20px;margin:6px 0 0">Licencias automáticas</h2>${lics}</div>
  <div class="panel"><div class="ph"><h2>3 · Reglas de fijación y consumibles</h2><span class="hint">Se aplican en orden, sobre las cantidades ya calculadas</span></div><div class="tw"><table class="t"><thead><tr><th>Activa</th><th>Por cada… (origen)</th><th class="n">Cada N</th><th>Agrega</th><th class="n">Cantidad</th><th class="n">Resultado</th><th>Nota</th><th></th></tr></thead><tbody>${der}</tbody></table></div><div class="pb"><button class="btn sm" data-act="addDR">+ Regla</button></div></div>
  <div class="cols2">
   <div class="panel"><div class="ph"><h2>4 · Reserva / desperdicio</h2></div><div class="tw"><table class="t"><thead><tr><th>Grupo</th><th class="n">%</th><th>Uso</th></tr></thead><tbody>${res}</tbody></table></div></div>
@@ -1192,7 +1285,7 @@ V.monitoreo = () => {
  <div class="panel"><div class="ph"><h2>Servicio</h2></div><div class="pb grid">
   ${fld("Modalidad", sel("P.svc.mode", [["virtual","Portería virtual / monitoreo"],["hibrido","Híbrido: virtual + vigilancia física"]]))}
   ${fld("Unidades / apartamentos", inp("P.units","n"))}
-  ${fld("Tarifa mensual × unidad", inp("P.svc.tarifa","n"), "", "Tarifa del edificio = unidades × tarifa: "+money(M.base)+".")}
+  ${fld("Tarifa mensual × unidad", `<input type="number" step="any" id="f_P_svc_tarifa" data-p="P.svc.tarifa" data-t="n" data-null="1" value="${M.tarOv?esc(V.tarifa):""}" placeholder="${esc(nf0.format(M.tarifa))} (valor fijo ${esc(V.mode==="hibrido"?"híbrido":"virtual")})">`, "", M.tarOv?"Tarifa especial para este proyecto. Bórrela para volver al valor fijo.":"Valor fijo de la modalidad ("+money(M.tarifa)+"). Escriba otro valor solo si este proyecto tiene tarifa especial. Edificio = "+money(M.base)+".")}
   ${fld("Plazo contrato (meses)", inp("P.contract","n"), "", "Se usa para amortizar el costo de equipos.")}
   ${fld("Base gravable (AIU) %", inp("P.svc.aiu","n"), "", "IVA del servicio = base gravable × IVA = "+num(M.ivaEf)+" %.")}
   ${fld("Incremento anual IPC + %", inp("P.ipc","n"))}
@@ -1201,12 +1294,12 @@ V.monitoreo = () => {
  </div></div>
  <div class="panel"><div class="ph"><h2>Mantenimiento y comparación</h2></div><div class="pb grid">
   ${fld("Mantenimiento mensual según", sel("P.svc.maintSrc", [["contrato","Visitas pactadas en el contrato"],["equipos","Reglas de cada equipo cotizado"]]))}
-  ${fld("Preventivos por año", inp("P.svc.prev","n"))}${fld("Correctivos por año", inp("P.svc.corr","n"))}${fld("Valor por visita", inp("P.svc.visita","n"), "", "Mensual = valor × visitas ÷ 12.")}
+  ${fld("Preventivos por año", `<input type="number" step="any" id="f_P_svc_prev" data-p="P.svc.prev" data-t="n" data-null="1" value="${V.prev!=null&&V.prev!==""?esc(V.prev):""}" placeholder="${M.nPrev} (fijo)">`)}${fld("Correctivos por año", `<input type="number" step="any" id="f_P_svc_corr" data-p="P.svc.corr" data-t="n" data-null="1" value="${V.corr!=null&&V.corr!==""?esc(V.corr):""}" placeholder="${M.nCorr} (fijo)">`)}${fld("Valor por visita", inp("P.svc.visita","n"), "", "Mensual = valor × visitas ÷ 12.")}
   ${fld("Factura mensual actual del cliente", inp("P.bill","n"), "", "Lo que paga hoy por su seguridad. Sirve para calcular el ahorro.")}
   ${hib?fld("Servicio físico (nombre)", inp("P.svc.fisicoName"), "wide")+fld("Tarifa mensual servicio físico", inp("P.svc.fisico","n")):""}
  </div></div>
  </div>
- <div class="panel"><div class="ph"><h2>Costos mensuales de operación</h2><button class="btn sm" data-act="addSC">+ Costo</button></div><div class="tw"><table class="t"><thead><tr><th>Concepto</th><th>Cálculo</th><th class="n">Cant</th><th class="n">Valor</th><th class="n">× Edificio</th><th class="n">× Unidad</th><th></th></tr></thead><tbody>${rows}
+ <div class="panel"><div class="ph"><h2>Costos mensuales de operación</h2><div class="row"><button class="btn sm" data-act="resetSC" id="btnResetSC">Restablecer valores fijos</button><button class="btn sm" data-act="addSC">+ Costo</button></div></div><div class="tw"><table class="t"><thead><tr><th>Concepto</th><th>Cálculo</th><th class="n">Cant</th><th class="n">Valor</th><th class="n">× Edificio</th><th class="n">× Unidad</th><th></th></tr></thead><tbody>${rows}
   <tr class="tot"><td colspan="4">Total costos mensuales</td><td class="n">${money(M.cSum)}</td><td class="n">${money(M.cSum/u)}</td><td></td></tr></tbody></table></div></div>
  <div class="cols2">${pl(M.solo,"Solo servicio",false)}${pl(M.con,"Servicio + equipos financiados",true)}</div>
  <div class="cols2">
@@ -1268,10 +1361,10 @@ V.propuesta = () => {
  const P = proj(), f = "P.pdf.";
  const opt = (k,l) => `<label class="opt">${inp(f+k,"b")}<span>${l}</span></label>`;
  return `<div class="vhead"><div><h1 class="vt">Propuesta PDF</h1><p class="vsub">Elija las secciones y exporte. En el diálogo de impresión seleccione <b>Guardar como PDF</b>, tamaño ${S.brand.page==="A4"?"A4":"Carta"}, márgenes predeterminados y active <b>Gráficos de fondo</b>.</p></div>
- <div class="row"><button class="btn pri" data-act="printProp">Exportar PDF propuesta</button><button class="btn" data-act="printBom">PDF lista de materiales</button></div></div>
+ <div class="row"><button class="btn pri" data-act="printProp">Exportar PDF propuesta</button><button class="btn" data-act="printBom">PDF lista de materiales</button><button class="btn" data-act="printOT">PDF orden de trabajo</button></div></div>
  <div class="panel"><div class="ph"><h2>Contenido</h2></div><div class="pb" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px">
   ${opt("cover","Portada")}${opt("present","Presentación y quiénes somos")}${opt("diag","Diagnóstico del inmueble")}${opt("sol","Solución propuesta")}${opt("modelo","Modelo operativo")}
-  ${opt("eco","Propuesta económica")}${opt("fin","Alternativas de financiación")}${opt("svc","Servicio mensual de monitoreo")}${opt("ahorro","Esquema de ahorro (si hay factura actual)")}${opt("equipos","Relación de equipos")}${opt("unit","Mostrar precios unitarios")}
+  ${opt("eco","Propuesta económica")}${opt("fin","Alternativas de financiación")}${opt("svc","Servicio mensual de monitoreo")}${opt("ahorro","Esquema de ahorro (si hay factura actual)")}${opt("plan","Plan de pagos: tabla de amortización y cuotas")}${opt("equipos","Relación de equipos")}${opt("unit","Mostrar precios unitarios")}
   ${opt("mats","Anexo: materiales de instalación (sin precios)")}${opt("serv","Servicios incluidos")}${opt("cond","Requerimientos y condiciones")}${opt("cierre","Cierre y firmas")}
  </div></div>
  <div class="preview-wrap" id="pvw"><div id="pv">${docProposal()}</div></div>`;
@@ -1310,6 +1403,20 @@ V.marca = () => {
   <div class="imgbox">${S.brand.cover?`<img src="${S.brand.cover}" alt="Portada">`:`<span class="muted">Sin imagen de portada</span>`}<div class="row"><label class="btn sm">Cambiar portada<input type="file" accept="image/*" data-img="cover" hidden></label>${S.brand.cover?`<button class="btn sm ghost" data-act="clearImg" data-k="cover">Quitar</button>`:""}</div></div>
   <div class="grid">${fld("Tipo de portada", sel(b+"coverMode", [["image","Imagen + texto encima"],["gen","Diseño generado con los colores"]]))}${fld("Posición del texto", sel(b+"coverPos", [["tl","Arriba izquierda"],["bl","Abajo izquierda"],["br","Abajo derecha"]]))}
   ${fld("Título de portada", inp(b+"coverTitle"))}${fld("Subtítulo", inp(b+"coverSub"))}</div>
+ </div></div>
+ </div>
+ <div class="cols2">
+ <div class="panel"><div class="ph"><h2>Monitoreo · valores fijos</h2><span class="hint">Se usan en todos los proyectos salvo tarifa especial</span></div>
+  <div class="tw"><table class="t"><thead><tr><th>Modalidad</th><th class="n">Tarifa × apto</th><th class="n">Preventivos / año</th><th class="n">Correctivos / año</th></tr></thead><tbody>
+  ${Object.keys(S.svcModes).map(k=>`<tr><td><b>${esc(S.svcModes[k].name)}</b></td><td class="n">${inp("S.svcModes."+k+".tarifa","n")}</td><td class="n">${inp("S.svcModes."+k+".prev","n",'class="w60"')}</td><td class="n">${inp("S.svcModes."+k+".corr","n",'class="w60"')}</td></tr>`).join("")}
+  </tbody></table></div>
+  <div class="pb"><p class="subh">Costos de operación base (se copian a cada proyecto nuevo)</p></div>
+  <div class="tw"><table class="t"><thead><tr><th>Concepto</th><th>Cálculo</th><th class="n">Valor</th><th></th></tr></thead><tbody>
+  ${S.svcCosts.map((c,i)=>`<tr><td style="min-width:180px">${inp("S.svcCosts."+i+".n")}</td><td>${sel("S.svcCosts."+i+".mode",[["apto","Por apartamento"],["fijo","Fijo por edificio"],["cant","Cantidad × valor"]])}</td><td class="n">${inp("S.svcCosts."+i+".v","n")}</td><td><button class="x" data-act="delBaseSC" data-i="${i}">×</button></td></tr>`).join("")}
+  </tbody></table></div><div class="pb"><button class="btn sm" data-act="addBaseSC">+ Costo base</button></div></div>
+ <div class="panel"><div class="ph"><h2>Seguimiento y orden de trabajo</h2></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
+  ${fld("Mensaje de WhatsApp para seguimiento", inp("S.brand.wa","area",'style="min-height:110px"'), "", "Variables: {contacto} {cliente} {num} {total} {asesor} {empresa} {fecha}.")}
+  ${fld("Lista de verificación de entrega (una por línea)", inp("S.texts.checklist","lines",'style="min-height:190px"'), "", "Aparece en la orden de trabajo para que el técnico marque cada prueba.")}
  </div></div>
  </div>
  <div class="panel"><div class="ph"><h2>Textos de la propuesta</h2></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
@@ -1381,10 +1488,48 @@ function docProposal(){
   const rows = R.bom.filter(r=>r.fin).map(r=>`<tr><td>${esc(r.m.grp)}</td><td>${esc(r.m.name)}</td><td>${esc(r.m.un)}</td><td class="n">${num(r.fin)}</td></tr>`).join("");
   s += `<div class="ds">${H("Materiales de instalación incluidos")}<p class="small">Cantidades estimadas con reserva técnica; sujetas a validación en visita técnica.</p><table class="dtb"><thead><tr><th>Grupo</th><th>Material</th><th>UN</th><th class="n">Cantidad</th></tr></thead><tbody>${rows||`<tr><td colspan="4">Sin materiales calculados.</td></tr>`}</tbody></table></div>`;
  }
+ if (o.plan && R.finBase>0) s += `<div class="ds">${H("Plan de pagos")}${planAnnex()}</div>`;
  if (o.serv) s += `<div class="ds">${H("Servicios incluidos")}<div class="ck">${T.servicios.map(x=>`<div>${esc(x)}</div>`).join("")}</div></div>`;
  if (o.cond) s += `<div class="ds">${H("Requerimientos y condiciones")}<ol style="margin:0;padding-left:18px">${T.condiciones.map(x=>`<li>${esc(fillVars(x))}</li>`).join("")}<li>Vigencia de la oferta: ${num(P.validity)} días a partir del ${fmtDate(P.date)}.</li>${P.note?`<li>${esc(P.note)}</li>`:""}</ol></div>`;
  if (o.cierre) s += `<div class="ds">${H("Cierre comercial")}<p>${esc(fillVars(T.cierre))}</p><div class="sign"><div><b>${esc(P.by)}</b><br>${esc(P.role)} · ${esc(b.company)}<br>${esc(P.phone)}${P.email?" · "+esc(P.email):""}</div><div><b>Aceptación del cliente</b><br>${esc(P.client)}${P.nit?" · NIT "+esc(P.nit):""}<br>Nombre, firma y fecha</div></div></div>`;
  return `<div class="doc" data-page="${esc(b.page)}" style="--dc:${esc(b.primary)};--dc2:${esc(b.secondary)}">${o.cover?cover():""}<section class="pg"><div class="inner"><table class="sheet"><thead><tr><td>${docHead("Propuesta comercial")}</td></tr></thead><tbody><tr><td>${s}</td></tr></tbody><tfoot><tr><td>${docFoot()}</td></tr></tfoot></table></div></section></div>`;
+}
+function otData(){
+ const P = proj(), b = S.brand;
+ return {tipo:"orden_trabajo", ot:"OT-"+P.num, cotizacion:P.num, generada:new Date().toISOString(), aprobada:P.approvedAt?new Date(P.approvedAt).toISOString():null,
+  empresa:b.company, asesor:P.by, cliente:{nombre:P.client, nit:P.nit, contacto:P.contact, telefono:P.cphone, direccion:P.address, ciudad:P.city},
+  equipos:R.lines.map(x=>({sistema:x.sys, referencia:x.ref, descripcion:x.name, cantidad:x.qty})),
+  materiales:R.bom.filter(r=>r.fin).map(r=>({grupo:r.m.grp, material:r.m.name, unidad:r.m.un, cantidad:r.fin, empaque:r.packs?r.packs+" x "+r.m.pack:""})),
+  canalizacion:S.materials.filter(m=>+m.len>0 && R.tubes[m.id]?.meters).map(m=>({tubo:tubeShort(m), metros:R.tubes[m.id].meters, tubos:R.tubes[m.id].count})),
+  actividades:R.acts.map(a=>({actividad:a.name, cantidad:a.qty, unidad:a.un, horas:a.ht})),
+  tecnicos:+P.labor.tech||0, dias:R.days, horas:R.hours, checklist:S.texts.checklist||[], notas:P.follow||""};
+}
+function docOT(){
+ const P = proj(), b = S.brand, d = otData();
+ const eq = [...new Set(d.equipos.map(e=>e.sistema))].map(sy=>`<tr class="g"><td colspan="5">${esc(sy)}</td></tr>`+d.equipos.filter(e=>e.sistema===sy).map((e,i)=>`<tr><td>${i+1}</td><td>${esc(e.descripcion)}</td><td class="small">${esc(e.referencia)}</td><td class="n">${num(e.cantidad)}</td><td class="n">☐</td></tr>`).join("")).join("");
+ const mats = [...new Set(d.materiales.map(m=>m.grupo))].map(g=>`<tr class="g"><td colspan="4">${esc(g)}</td></tr>`+d.materiales.filter(m=>m.grupo===g).map(m=>`<tr><td>${esc(m.material)}</td><td>${esc(m.unidad)}</td><td class="n"><b>${num(m.cantidad)}</b>${m.empaque?`<div class="small">${esc(m.empaque)}</div>`:""}</td><td class="n">☐</td></tr>`).join("")).join("");
+ const acts = d.actividades.map(a=>`<tr><td>${esc(a.actividad)}</td><td class="n">${num(a.cantidad)} ${esc(a.unidad)}</td><td class="n">${num(a.horas)} h</td></tr>`).join("");
+ const tubos = d.canalizacion.map(t=>`<tr><td>${esc(t.tubo)}</td><td class="n">${num(t.metros)} m</td><td class="n">${num(t.tubos)}</td></tr>`).join("");
+ return `<div class="doc" data-page="${esc(b.page)}" style="--dc:${esc(b.primary)};--dc2:${esc(b.secondary)}"><section class="pg"><div class="inner"><table class="sheet"><thead><tr><td>${docHead("Orden de trabajo "+d.ot)}</td></tr></thead><tbody><tr><td>
+  <div class="kv"><div><span>Cliente</span><b>${esc(P.client||"—")}</b></div><div><span>Dirección</span><b>${esc([P.address,P.city].filter(Boolean).join(", ")||"—")}</b></div><div><span>Contacto</span><b>${esc([P.contact,P.cphone].filter(Boolean).join(" · ")||"—")}</b></div></div>
+  <div class="kv"><div><span>Cotización aprobada</span><b>${esc(P.num)}${P.approvedAt?" · "+fmtDate(new Date(P.approvedAt).toISOString().slice(0,10)):""}</b></div><div><span>Personal y tiempo</span><b>${num(d.tecnicos)} técnicos · ${d.dias} días</b></div><div><span>Horas estimadas</span><b>${num(d.horas)} h</b></div></div>
+  <h2 class="dt"><span class="no">01</span>Equipos a instalar</h2><table class="dtb"><thead><tr><th>Ít.</th><th>Equipo</th><th>Referencia</th><th class="n">Cant.</th><th class="n">Instalado</th></tr></thead><tbody>${eq||`<tr><td colspan="5">Sin equipos.</td></tr>`}</tbody></table>
+  <h2 class="dt" style="margin-top:16px"><span class="no">02</span>Materiales para compras y despacho</h2><table class="dtb"><thead><tr><th>Material</th><th>UN</th><th class="n">Cantidad</th><th class="n">Entregado</th></tr></thead><tbody>${mats||`<tr><td colspan="4">Sin materiales.</td></tr>`}</tbody></table>
+  ${tubos?`<h3 style="margin-top:14px">Canalización</h3><table class="dtb"><thead><tr><th>Tubo</th><th class="n">Metros</th><th class="n">Tubos</th></tr></thead><tbody>${tubos}</tbody></table>`:""}
+  <h2 class="dt" style="margin-top:16px"><span class="no">03</span>Actividades de instalación</h2><table class="dtb"><thead><tr><th>Actividad</th><th class="n">Cantidad</th><th class="n">Horas</th></tr></thead><tbody>${acts||`<tr><td colspan="3">Sin actividades.</td></tr>`}</tbody></table>
+  <h2 class="dt" style="margin-top:16px"><span class="no">04</span>Verificación de entrega</h2><div class="ck" style="grid-template-columns:1fr">${(d.checklist||[]).map(x=>`<div style="display:flex;gap:8px"><span>☐</span>${esc(x)}</div>`).join("").replace(/<div style/g,'<div class="nock" style')}</div>
+  <h3 style="margin-top:14px">Observaciones</h3><div style="border:1px solid #D9D4D2;min-height:80px;padding:8px" class="small">${esc(d.notas)}</div>
+  <div class="sign" style="grid-template-columns:1fr 1fr 1fr"><div><b>Técnico responsable</b><br>Nombre y firma</div><div><b>Supervisor</b><br>${esc(P.by)}</div><div><b>Recibe a satisfacción</b><br>${esc(P.client||"Cliente")}</div></div>
+ </td></tr></tbody><tfoot><tr><td>${docFoot()}</td></tr></tfoot></table></div></section></div>`;
+}
+function planAnnex(){
+ const P = proj();
+ const tA = R.amortA.map(a=>`<tr><td class="n">${a.k}</td><td class="n">${money(a.ini)}</td><td class="n">${money(a.it)}</td><td class="n">${money(a.cap)}</td><td class="n">${money(a.c)}</td><td class="n">${money(a.iva)}</td><td class="n"><b>${money(a.tot)}</b></td><td class="n">${money(Math.abs(a.fin)<1?0:a.fin)}</td></tr>`).join("");
+ const tB = R.amortB.map(a=>`<tr><td class="n">${a.k}</td><td class="n">${money(a.c)}</td><td class="n">${money(a.iva)}</td><td class="n"><b>${money(a.tot)}</b></td></tr>`).join("");
+ const head = `<thead><tr><th class="n">Mes</th><th class="n">Saldo inicial</th><th class="n">Interés</th><th class="n">Amortización</th><th class="n">Cuota</th><th class="n">IVA ${num(R.ivaPref)} %</th><th class="n">Cuota total</th><th class="n">Saldo final</th></tr></thead>`;
+ return `<h3>Alternativa ${R.planA.n} meses · tasa ${num(P.fin.rate)} % mensual</h3><table class="dtb">${head}<tbody>${tA}<tr class="t"><td colspan="4">Totales · intereses ${money(R.planA.interest)}</td><td class="n">${money(R.planA.totalPay)}</td><td class="n">${money(R.planA.ivaC*R.planA.n)}</td><td class="n">${money(R.planA.fin*R.planA.n)}</td><td></td></tr></tbody></table>
+ <h3 style="margin-top:14px">Alternativa ${R.planB.n} meses${R.planB.noInt?" · sin interés":" · tasa "+num(P.fin.rate)+" % mensual"}</h3>${R.planB.noInt?`<table class="dtb"><thead><tr><th class="n">Cuota</th><th class="n">Valor cuota</th><th class="n">IVA ${num(R.ivaPref)} %</th><th class="n">Total cuota</th></tr></thead><tbody>${tB}<tr class="t"><td>Total</td><td class="n">${money(R.planB.cuota*R.planB.n)}</td><td class="n">${money(R.planB.ivaC*R.planB.n)}</td><td class="n">${money(R.planB.fin*R.planB.n)}</td></tr></tbody></table>`:`<table class="dtb">${head}<tbody>${R.amortB.map(a=>`<tr><td class="n">${a.k}</td><td class="n">${money(a.ini)}</td><td class="n">${money(a.it)}</td><td class="n">${money(a.cap)}</td><td class="n">${money(a.c)}</td><td class="n">${money(a.iva)}</td><td class="n"><b>${money(a.tot)}</b></td><td class="n">${money(Math.abs(a.fin)<1?0:a.fin)}</td></tr>`).join("")}</tbody></table>`}
+ <p class="small" style="margin-top:6px">Valor financiado ${money(R.finBase)}. La cuota se calcula con cuota fija sobre saldo; el IVA preferencial se liquida sobre una base gravable del ${num(P.fin.aiu)} %.</p>`;
 }
 function docBom(){
  const P = proj(), b = S.brand;
@@ -1414,7 +1559,7 @@ const A = {
  addFree(){ proj().lines.push({id:uid("l"), cat:null, ref:"", name:"", qty:1, cost:0, sys:S.systems[0], profile:"-"}); },
  delLine(d){ proj().lines.splice(+d.i,1); proj().updated = Date.now(); },
  resetCost(d){ delete proj().lines[+d.i].cost; },
- newProj(){ const cur = proj(); const svc = clone(cur.svc); svc.tarifa = 0; svc.desc = 0; svc.prev = 0; svc.corr = 0; svc.fisico = 0; const lab = clone(cur.labor); lab.days = 0; lab.transport = 0; lab.imprev = 0;
+ newProj(){ const cur = proj(); const svc = clone(cur.svc); svc.tarifa = null; svc.desc = 0; svc.prev = null; svc.corr = null; svc.fisico = 0; svc.costs = clone(S.svcCosts || DEF_PARAMS.svc.costs); const lab = clone(cur.labor); lab.days = 0; lab.transport = 0; lab.imprev = 0;
   const p = newProject({margins:clone(cur.margins), iva:cur.iva, fin:clone(cur.fin), svc, labor:lab}, S.brand); p.num = nextNum(); S.projects[p.id] = p; S.active = p.id; VIEW = "proyecto"; toast("Proyecto nuevo en blanco"); },
  dupProj(){ const p = clone(proj()); p.id = uid("p"); p.num = nextNum(); p.client += " (copia)"; p.history = []; p.status = "borrador"; p.updated = Date.now(); S.projects[p.id] = p; S.active = p.id; toast("Proyecto duplicado"); },
  delProj(){ arm("btnDelProj", ()=>{ if (Object.keys(S.projects).length<=1){ toast("Debe quedar al menos un proyecto"); return; } const p = S.projects[S.active]; trashOnDisk(p); delete S.projects[S.active]; S.active = Object.keys(S.projects)[0]; commit(); toast(DISK.ok?"Proyecto enviado a la papelera de la carpeta":"Proyecto eliminado"); }); return "noop"; },
@@ -1422,9 +1567,15 @@ const A = {
  pickFolder(){ pickFolder(); return "noop"; },
  reconnect(){ reconnect(); return "noop"; },
  diskLoad(d){ loadFromDisk(d.m); return "noop"; },
- saveVersion(){ const n = ($("#verNote")?.value || "").trim(); snapshot(proj(), n || "Versión guardada"); toast("Versión guardada en el historial"); },
+ saveVersion(){ const P = proj(), n = ($("#verNote")?.value || "").trim(); snapshot(P, n || "Versión guardada"); P.savedHash = projHash(P); P.savedAt = Date.now(); writeNow(); toast("Versión guardada en el historial"); },
+ saveProj(){ const P = proj(), n = ($("#verNote")?.value || "").trim();
+  if (unsaved(P)){ snapshot(P, n || "Guardado", false); P.savedHash = projHash(P); P.savedAt = Date.now(); dirty.proj.add(P.id); writeNow().then(()=>render()); toast("Cotización guardada · versión "+P.history.length+" en el historial"); }
+  else { writeNow(); toast("No hay cambios desde el último guardado"); }
+  return "noop"; },
+ delV(d){ arm("dv_"+d.id, ()=>{ const P = proj(); P.history = P.history.filter(h=>h.id!==d.id); if (V._diff===d.id) V._diff = null; dirty.proj.add(P.id); commit(); writeNow(); toast("Versión eliminada"); }); return "noop"; },
+ delAutoV(){ arm("btnDelAuto", ()=>{ const P = proj(), n = P.history.filter(h=>h.auto).length; P.history = P.history.filter(h=>!h.auto); dirty.proj.add(P.id); commit(); writeNow(); toast(n+" versiones automáticas eliminadas"); }); return "noop"; },
  diffV(d){ V._diff = V._diff===d.id ? null : d.id; },
- restoreV(d){ arm("rv_"+d.id, ()=>{ restoreVersion(proj(), d.id); commit(); toast("Versión restaurada (la anterior quedó guardada en el historial)"); }); return "noop"; },
+ restoreV(d){ arm("rv_"+d.id, ()=>{ restoreVersion(proj(), d.id); commit(); writeNow(); toast("Versión restaurada (la anterior quedó guardada en el historial)"); }); return "noop"; },
  forkV(d){ const v = proj().history.find(h=>h.id===d.id); const p = clone(v.data); p.lines.forEach(l=>delete l._cost); p.id = uid("p"); p.num = nextNum(); p.client = (p.client||"Sin nombre")+" (desde versión)"; p.history = []; p.status = "borrador"; p.updated = Date.now(); S.projects[p.id] = p; S.active = p.id; toast("Nuevo proyecto creado desde esa versión"); },
  install(){ const e = V._install; if (e){ e.prompt(); e.userChoice.finally(()=>{ V._install = null; render(); }); } return "noop"; },
  exportJson(){ download(JSON.stringify(S,null,1), "cotizador_respaldo_"+today()+".json", "application/json"); return "noop"; },
@@ -1434,6 +1585,14 @@ const A = {
   download("﻿"+rows.map(r=>r.map(c=>typeof c==="number"?String(c).replace(".",","):'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\r\n"), "materiales_"+proj().client.replace(/\W+/g,"_")+".csv", "text/csv"); return "noop"; },
  printProp(){ snapshot(proj(), "PDF de propuesta generado", true); commit(); doPrint(docProposal()); return "noop"; },
  printBom(){ doPrint(docBom()); return "noop"; },
+ printOT(){ const P = proj(); if (P.status!=="aprobada") toast("Nota: la cotización aún no está aprobada"); doPrint(docOT()); return "noop"; },
+ exportOT(){ const d = otData(); download(JSON.stringify(d,null,1), d.ot.replace(/\W+/g,"_")+".json", "application/json"); return "noop"; },
+ addLog(){ const P = proj(), t = ($("#logText")?.value||"").trim(), n = +($("#logNext")?.value||0); if (!t){ toast("Escriba qué gestión hizo"); return "noop"; } P.log = P.log||[]; P.log.unshift({at:Date.now(), text:t}); if (n) P.next = addDays(n); P.updated = Date.now(); toast("Gestión registrada"+(n?" · próxima: "+fmtDate(P.next):"")); },
+ snooze(d){ const p = S.projects[d.id]; p.next = addDays(+d.d); (p.log = p.log||[]).unshift({at:Date.now(), text:"Gestión reprogramada +"+d.d+" días"}); p.updated = Date.now(); dirty.proj.add(p.id); toast("Reprogramada para "+fmtDate(p.next)); },
+ resetSC(){ arm("btnResetSC", ()=>{ proj().svc.costs = clone(S.svcCosts); commit(); toast("Costos restablecidos a los valores fijos"); }); return "noop"; },
+ addBaseSC(){ S.svcCosts.push({n:"Nuevo costo", mode:"fijo", v:0, q:0}); },
+ delBaseSC(d){ S.svcCosts.splice(+d.i,1); },
+ delLicT(d){ S.licRules[+d.i][d.k].splice(+d.j,1); },
  addPM(d){ S.profiles[+d.i].mats.push({m:"chazo14", q:1}); V._open = S.profiles[+d.i].id; },
  delPM(d){ S.profiles[+d.i].mats.splice(+d.j,1); V._open = S.profiles[+d.i].id; },
  addProf(){ const p = P_(uid("r"),"Nueva regla",[["chazo14",4],["tgol",4]],1,50000); S.profiles.push(p); V._open = p.id; toast("Regla creada al final de la lista"); },
@@ -1464,7 +1623,8 @@ document.addEventListener("change", e=>{
  const el = e.target;
  if (el.id==="projSel"){ S.active = el.value; commit(); return; }
  if (el.id==="projF"){ V._pf = el.value; render(); return; }
- if (el.dataset.status){ const P = proj(); if (P.status !== el.value){ P.status = el.value; P.updated = Date.now(); snapshot(P, "Estado: "+stInfo(el.value)[1], true); commit(); toast("Estado actualizado y versión guardada"); } return; }
+ if (el.dataset.lict){ const [i,k] = el.dataset.lict.split("|"); if (el.value){ (S.licRules[+i][k] ||= []).push(el.value); commit(); } return; }
+ if (el.dataset.status){ const P = proj(); if (P.status !== el.value){ P.status = el.value; P.updated = Date.now(); if (el.value==="aprobada") P.approvedAt = Date.now(); if (el.value!=="perdida"){} (P.log = P.log||[]).unshift({at:Date.now(), text:"Estado cambiado a "+stInfo(el.value)[1]}); snapshot(P, "Estado: "+stInfo(el.value)[1], true); commit(); toast("Estado actualizado y versión guardada"); } return; }
  if (el.dataset.actOff){ const P = proj(); if (el.checked) delete P.moff[el.dataset.actOff]; else P.moff[el.dataset.actOff] = true; commit(); return; }
  if (el.dataset.img){ const f = el.files[0]; if (!f) return; readImg(f, el.dataset.img==="logo" ? 700 : 1400, el.dataset.img==="logo").then(url=>{ S.brand[el.dataset.img] = url; commit(); toast(el.dataset.img==="logo"?"Logo actualizado":"Portada actualizada"); }); return; }
  if (el.id==="fileImport"){ const f = el.files[0]; if (!f) return; f.text().then(t=>{ try { const d = JSON.parse(t); if (d.projects && d.catalog){ S = d; upgrade(S); if (DISK.ok) syncDisk(true); } else if (d.lines){ d.id = uid("p"); S.projects[d.id] = d; S.active = d.id; upgrade(S); } else throw 0; commit(); toast("Respaldo importado"); } catch(x){ toast("El archivo no es un respaldo válido del cotizador"); } el.value=""; }); return; }
@@ -1485,7 +1645,9 @@ document.addEventListener("click", e=>{
  const fn = A[b.dataset.act]; if (!fn) return; e.preventDefault();
  const r = fn(b.dataset); if (r!=="noop") commit();
 });
-document.addEventListener("keydown", e=>{ if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="s"){ e.preventDefault(); if (document.activeElement) document.activeElement.blur(); setTimeout(()=>{ A.saveVersion(); commit(); }, 30); } });
+document.addEventListener("keydown", e=>{ if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="s"){ e.preventDefault(); if (document.activeElement) document.activeElement.blur(); setTimeout(()=>{ A.saveProj(); }, 30); } });
+document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="hidden" && S) writeNow(); });
+window.addEventListener("pagehide", ()=>{ if (S) writeNow(); });
 window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); V._install = e; if (VIEW==="proyectos") render(); });
 if (/^https?:/.test(location.protocol) && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 document.addEventListener("toggle", e=>{ const d = e.target; if (d.matches && d.matches("details.prof")) { if (d.open) V._open = d.dataset.prof; else if (V._open===d.dataset.prof) V._open = null; } }, true);

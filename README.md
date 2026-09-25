@@ -52,5 +52,15 @@ Para actualizar la app, reemplace `index.html` en el repositorio. Si cambia `sw.
 
 ## Atajos
 
-- **Ctrl + S**: guarda una versión de la cotización en el historial.
+- **Guardar** (arriba, siempre visible) o **Ctrl + S**: guarda la cotización y deja una versión en el historial. Si no hay cambios, no duplica versiones.
+- Las versiones se pueden comparar, restaurar, copiar como proyecto nuevo o borrar.
 - Exportar el PDF o cambiar el estado comercial guarda una versión automática.
+
+## Seguimiento comercial y orden de trabajo (v6)
+
+- **Agenda** en Proyectos: gestiones vencidas, de hoy y de los próximos 7 días, con botón de WhatsApp y reprogramar +3/+7 días.
+- **Registrar gestión** en cada proyecto (queda en su bitácora) y **motivo de pérdida** para ver por qué se pierden las cotizaciones.
+- **Orden de trabajo** (PDF y JSON) cuando la cotización pasa a *Aprobada*: equipos, materiales para compras, canalización, actividades, lista de verificación y firmas.
+- **Monitoreo**: tarifas fijas por modalidad (virtual $150.000 / híbrido $120.000 por apartamento) editables en Empresa y marca.
+- **Licencias Hipcam automáticas**: 1 licencia única por proyecto (incluye 1 terminal de 8") + 1 adicional por cada terminal de 8" extra.
+- **Plan de pagos** en la propuesta: tabla de amortización de 24 meses y cuotas de 3 meses.
