@@ -580,6 +580,7 @@ function upgrade(st){
   st.derived = (st.derived||[]).filter(d=>!(["chazo14","tgol"].includes(d.m) && /^(emtg|raw|pvca)/.test(d.src)));
  }
  Object.values(st.tubeKits).forEach(ks=>ks.forEach(k=>{ k.r ||= "abajo"; }));
+ ["n12","n13"].forEach(id=>{ const seed = SEED_CATALOG.find(c=>c.id===id); if (seed && !st.catalog.some(c=>c.id===id || String(c.ref).toUpperCase()===seed.ref)) st.catalog.push(clone(seed)); });
  st.svcModes ||= clone(DEF_SVC_MODES); st.licRules ||= clone(DEF_LIC_RULES); st.licRules.forEach(r=>{ if (r.id==="hipcam" && r.base==="n11"){ r.base = "n12"; r.extra = "n13"; } }); st.brand.wa ||= DEF_WA; st.texts.checklist ||= clone(DEF_CHECKLIST);
  st.svcCosts ||= clone(DEF_PARAMS.svc.costs);
  if (!st.patches.includes("monitoreo-fijo-v6")){
@@ -706,16 +707,28 @@ function compute(P = proj()){
    sys: l.sys || it?.sys || S.systems[0], cost, margin, profile, qty, price, costT: cost*qty, saleT: price*qty, costOv: l.cost!=null, marOv: l.margin!=null, profOv: l.profile!==undefined};
  });
  // licencias automáticas (no se guardan como líneas: se recalculan siempre)
- R.autoLines = [];
- const qtyCat = {}; P.lines.forEach(l=>{ if (l.cat) qtyCat[l.cat] = (qtyCat[l.cat]||0) + (+l.qty||0); });
+ // Un equipo cuenta si es el mismo del catálogo o si su referencia coincide (p. ej. "DS-K1T681DBWX(O-STD) HIPCAM")
+ R.autoLines = []; R.licWarn = [];
+ const nref = x => String(x||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+ const sameItem = (l, tid) => { if (l.cat===tid) return true; const a = cById[l.cat], t = cById[tid]; if (!a || !t) return false; const ra = nref(a.ref), rt = nref(t.ref); return rt.length>=8 && ra.length>=8 && (ra.includes(rt) || rt.includes(ra)); };
+ const findCat = (id, ref) => cById[id] || S.catalog.find(c=>nref(c.ref)===nref(ref));
  (S.licRules||[]).forEach(r=>{
   if (!r.on) return;
-  const tb = (r.baseTriggers||[]).reduce((a,id)=>a+(qtyCat[id]||0),0), te = (r.extraTriggers||[]).reduce((a,id)=>a+(qtyCat[id]||0),0);
-  const mk = (cid, qty, why) => { const it = cById[cid]; if (!it || qty<=0 || qtyCat[cid]) return; const cost = +it.cost||0, price = pv(cost, M.eq);
-   R.autoLines.push({i:-1, auto:true, why, l:{}, it, ref:it.ref, name:it.name, spec:it.spec||"", un:it.un||"UND", sys:it.sys, cost, margin:M.eq, profile:"", qty, price, costT:cost*qty, saleT:price*qty}); };
-  if (tb>0) mk(r.base, 1, r.name+": activación del proyecto (incluye "+num(r.included)+" terminal)");
-  if (tb>0) mk(r.extra, Math.max(0, te - (+r.included||0)), r.name+": "+num(te)+" terminales − "+num(r.included)+" incluida");
+  const trig = (ids) => P.lines.filter(l=>(ids||[]).some(id=>sameItem(l,id)));
+  const lb = trig(r.baseTriggers), le = trig(r.extraTriggers);
+  const tb = lb.reduce((a,l)=>a+(+l.qty||0),0), te = le.reduce((a,l)=>a+(+l.qty||0),0);
+  if (!tb) return;
+  const sys = lb[0].sys || cById[lb[0].cat]?.sys || "CONTROL DE ACCESO";
+  const mk = (it, qty, why) => { if (!it || qty<=0) return; if (P.lines.some(l=>l.cat===it.id)) return; const cost = +it.cost||0, price = pv(cost, M.eq);
+   R.autoLines.push({i:-1, auto:true, lic:true, why, l:{}, it, ref:it.ref, name:it.name, spec:it.spec||"", un:it.un||"UND", sys, cost, margin:M.eq, profile:"", qty, price, costT:cost*qty, saleT:price*qty}); };
+  const bIt = findCat(r.base, "LIC-PROYECTO"), eIt = findCat(r.extra, "LIC-INTERCOM8");
+  if (!bIt) R.licWarn.push("No se encuentra en el catálogo la licencia única de "+r.name);
+  if (te > (+r.included||0) && !eIt) R.licWarn.push("No se encuentra en el catálogo la licencia adicional de "+r.name);
+  const inc = +r.included||0, extra = Math.max(0, te - inc);
+  mk(bIt, 1, "Activa la plataforma del proyecto e incluye la licencia de "+num(inc)+" terminal"+(inc===1?"":"es")+" de 8\".");
+  mk(eIt, extra, "Una por cada terminal de 8\" adicional: "+num(te)+" terminal"+(te===1?"":"es")+" − "+num(inc)+" incluida"+(inc===1?"":"s")+" = "+num(extra)+".");
  });
+ R.licSale = R.autoLines.reduce((a,x)=>a+x.saleT,0); R.licCost = R.autoLines.reduce((a,x)=>a+x.costT,0);
  R.lines = R.lines.concat(R.autoLines);
  // conteo por perfil
  const cnt = R.cnt = {}; let eqUnits = 0;
@@ -855,6 +868,7 @@ function audit(P, R){
  add(!last || Math.abs(last.fin) < 1 ? "ok":"crit","Tabla de amortización cierra en cero", last? money(last.fin) : "—", "Revise tasa y número de cuotas");
  add("ok","Financiación excluye mantenimiento y monitoreo", "Base: "+money(R.finBase), "Corregido frente al Excel");
  add(R.kitMissing.length?"warn":"ok","Accesorios de tubería con material asignado para cada medida", R.kitMissing.length? R.kitMissing.join(", ") : "Completo", "Asigne el material en Reglas → Canalización");
+ R.licWarn.forEach(w=>add("crit","Licencias automáticas", w, "Restaure la licencia en Catálogo o elíjala en Reglas → Licencias"));
  const M = R.svc;
  if (M.base>0){
   add(M.solo.op>0?"ok":"crit","Monitoreo solo servicio: utilidad operacional", money(M.solo.op)+" · "+pct(M.solo.opPct), "Suba la tarifa por unidad o revise los costos mensuales");
@@ -1088,7 +1102,7 @@ V.cotizacion = () => {
   const sc = ls.reduce((a,x)=>a+x.costT,0), sv = ls.reduce((a,x)=>a+x.saleT,0);
   body += `<tr class="grp"><td colspan="11">${esc(s)}</td></tr>`;
   ls.forEach(x=>{
-   if (x.auto){ body += `<tr class="autol"><td><span class="mono">${esc(x.ref)}</span></td><td><div>${esc(x.name)}</div><div class="src">Automática · ${esc(x.why)}</div></td><td class="small muted">${esc(x.sys)}</td><td class="small muted">Regla de licencias</td><td class="n"><b>${num(x.qty)}</b></td><td class="n">${money(x.cost)}</td><td class="n">${num(x.margin)}</td><td class="n">${money(x.price)}</td><td class="n"><b>${money(x.saleT)}</b></td><td class="n muted">${money(x.costT)}</td><td></td></tr>`; return; }
+   if (x.auto){ body += `<tr class="autol"><td><span class="mono">${esc(x.ref)}</span></td><td><div>${esc(x.name)}</div><div class="src"><b>Licencia automática</b> · ${esc(x.why)}</div></td><td class="small muted">${esc(x.sys)}</td><td class="small muted">Visible para el cliente en la propuesta</td><td class="n"><b>${num(x.qty)}</b></td><td class="n">${money(x.cost)}</td><td class="n">${num(x.margin)}</td><td class="n">${money(x.price)}</td><td class="n"><b>${money(x.saleT)}</b></td><td class="n muted">${money(x.costT)}</td><td></td></tr>`; return; }
    const b = "P.lines."+x.i;
    const refCell = x.it ? `<span class="mono">${esc(x.ref)}</span>` : inp(b+".ref","t",'placeholder="Referencia"');
    const nameCell = x.it ? `<div>${esc(x.name)}</div>` : inp(b+".name","t",'placeholder="Descripción"');
@@ -1452,7 +1466,8 @@ function docProposal(){
  if (o.sol) s += `<div class="ds">${H("Solución propuesta")}<div class="two">${T.solucion.map(x=>`<div class="box"><h3>${esc(x.t)}</h3><ul>${x.items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul></div>`).join("")}</div></div>`;
  if (o.modelo) s += `<div class="ds">${H("Modelo operativo")}<div class="steps">${T.modelo.map((x,i)=>`<div><b>${i+1} · ${esc(x.t)}</b>${esc(x.d)}</div>`).join("")}</div></div>`;
  if (o.eco){
-  let rows = `<tr><td>Equipos y sistemas</td><td class="n">${money(R.eqSale)}</td><td>Pago único</td></tr>
+  let rows = `<tr><td>Equipos y sistemas</td><td class="n">${money(R.eqSale - R.licSale)}</td><td>Pago único</td></tr>
+   ${R.licSale?`<tr><td>Licencias de software (${R.autoLines.map(x=>num(x.qty)+" × "+esc(x.name.toLowerCase())).join(" + ")})</td><td class="n">${money(R.licSale)}</td><td>Pago único</td></tr>`:""}
    <tr><td>Materiales de instalación (cableado, canalización y accesorios)</td><td class="n">${money(R.matSale)}</td><td>Pago único</td></tr>
    <tr><td>Instalación, configuración y puesta en marcha</td><td class="n">${money(R.moSale)}</td><td>Pago único</td></tr>
    ${P.inclMaint?`<tr><td>Mantenimiento preventivo y correctivo (año 1)</td><td class="n">${money(R.maintSale)}</td><td>Anual</td></tr>`:""}
@@ -1480,9 +1495,10 @@ function docProposal(){
  if (o.equipos && R.lines.length){
   let rows = "";
   [...new Set(S.systems.concat(R.lines.map(x=>x.sys)))].forEach(sy=>{ const ls = R.lines.filter(x=>x.sys===sy); if (!ls.length) return;
-   rows += `<tr class="g"><td colspan="${o.unit?6:5}">${esc(sy)}</td></tr>` + ls.map((x,k)=>`<tr><td>${k+1}</td><td><b>${esc(x.name)}</b>${x.spec?`<div class="small">${esc(x.spec.slice(0,110))}${x.spec.length>110?"…":""}</div>`:""}</td><td class="small">${esc(x.ref)}</td><td class="n">${num(x.qty)}</td>${o.unit?`<td class="n">${money(x.price)}</td>`:""}<td class="n">${money(x.saleT)}</td></tr>`).join("")
+   rows += `<tr class="g"><td colspan="${o.unit?6:5}">${esc(sy)}</td></tr>` + ls.map((x,k)=>`<tr><td>${k+1}</td><td><b>${esc(x.name)}</b>${x.lic?`<div class="small">${esc(x.why)}</div>`:x.spec?`<div class="small">${esc(x.spec.slice(0,110))}${x.spec.length>110?"…":""}</div>`:""}</td><td class="small">${esc(x.ref)}</td><td class="n">${num(x.qty)}</td>${o.unit?`<td class="n">${money(x.price)}</td>`:""}<td class="n">${money(x.saleT)}</td></tr>`).join("")
     + `<tr class="s"><td colspan="${o.unit?5:4}">Subtotal ${esc(sy)}</td><td class="n">${money(ls.reduce((a,x)=>a+x.saleT,0))}</td></tr>`; });
-  s += `<div class="ds">${H("Relación de equipos propuestos")}<table class="dtb"><thead><tr><th>Ít.</th><th>Descripción</th><th>Referencia</th><th class="n">Cant.</th>${o.unit?`<th class="n">P. unitario</th>`:""}<th class="n">Total</th></tr></thead><tbody>${rows}<tr class="t"><td colspan="${o.unit?5:4}">Total equipos antes de IVA</td><td class="n">${money(R.eqSale)}</td></tr></tbody></table></div>`;
+  s += `<div class="ds">${H("Relación de equipos propuestos")}<table class="dtb"><thead><tr><th>Ít.</th><th>Descripción</th><th>Referencia</th><th class="n">Cant.</th>${o.unit?`<th class="n">P. unitario</th>`:""}<th class="n">Total</th></tr></thead><tbody>${rows}<tr class="t"><td colspan="${o.unit?5:4}">Total equipos antes de IVA</td><td class="n">${money(R.eqSale)}</td></tr></tbody></table>
+  ${R.autoLines.length?`<div class="box" style="margin-top:10px"><h3>Licenciamiento de las terminales</h3><p class="small" style="margin:0;color:#1E1C1D">${R.autoLines.map(x=>`<b>${num(x.qty)} × ${esc(x.name)}</b> (${money(x.price)} c/u): ${esc(x.why)}`).join("<br>")}<br>Las licencias son de pago único y quedan asociadas al proyecto.</p></div>`:""}</div>`;
  }
  if (o.mats){
   const rows = R.bom.filter(r=>r.fin).map(r=>`<tr><td>${esc(r.m.grp)}</td><td>${esc(r.m.name)}</td><td>${esc(r.m.un)}</td><td class="n">${num(r.fin)}</td></tr>`).join("");
