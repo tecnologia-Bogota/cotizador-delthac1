@@ -511,7 +511,7 @@ const LOST_REASONS = [["precio","Precio"],["competencia","Eligió a la competenc
 const DEF_PARAMS = {
  margins:{eq:23,mat:23,mo:23,min:20}, iva:19,
  fin:{rate:1.2,nA:24,nB:3,aiu:10,base:"sin",bNoInt:true},
- labor:{tech:2,rate:120000,hpd:8,days:0,transport:0,imprev:0},
+ labor:{tech:2,rate:120000,hpd:8,days:0,transport:350000,imprev:650000},
  svc:{mode:"virtual",tarifa:null,aiu:10,adm:9.12,vta:0.62,desc:0,prev:null,corr:null,visita:201347.5,maintSrc:"contrato",fisico:0,fisicoName:"Servicio de vigilancia física 12 h diurno, lunes a domingo",
   costs:[{n:"Operador portería virtual",mode:"apto",v:0,q:0},{n:"Operador monitoreo y seguridad",mode:"apto",v:73623.96,q:0},{n:"Licencia Intelbras",mode:"fijo",v:256000,q:0},{n:"Licencia Hipcam",mode:"fijo",v:0,q:0},{n:"Licencia Softguard",mode:"apto",v:2500,q:0},{n:"Capacitación (prorrateo mensual)",mode:"fijo",v:26998,q:0},{n:"Plan de datos",mode:"fijo",v:10000,q:0},{n:"Reacciones alarmas",mode:"fijo",v:426557,q:0}]}
 };
@@ -583,6 +583,8 @@ function upgrade(st){
  ["n12","n13"].forEach(id=>{ const seed = SEED_CATALOG.find(c=>c.id===id); if (seed && !st.catalog.some(c=>c.id===id || String(c.ref).toUpperCase()===seed.ref)) st.catalog.push(clone(seed)); });
  st.svcModes ||= clone(DEF_SVC_MODES); st.licRules ||= clone(DEF_LIC_RULES); st.licRules.forEach(r=>{ if (r.id==="hipcam" && r.base==="n11"){ r.base = "n12"; r.extra = "n13"; } }); st.brand.wa ||= DEF_WA; st.texts.checklist ||= clone(DEF_CHECKLIST);
  st.svcCosts ||= clone(DEF_PARAMS.svc.costs);
+ st.laborBase ||= clone(DEF_PARAMS.labor);
+ if (!st.patches.includes("mo-base-v8")){ Object.values(st.projects).forEach(p=>{ if (p.labor && !+p.labor.transport && !+p.labor.imprev){ p.labor.transport = st.laborBase.transport; p.labor.imprev = st.laborBase.imprev; } }); st.patches.push("mo-base-v8"); }
  if (!st.patches.includes("monitoreo-fijo-v6")){
   Object.values(st.projects).forEach(p=>{ if (!p.svc) return; if (!+p.svc.tarifa) p.svc.tarifa = null; if (!+p.svc.prev) p.svc.prev = null; if (!+p.svc.corr) p.svc.corr = null; if (p.fin && !p.lines.length) p.fin.bNoInt = true; });
   st.patches.push("monitoreo-fijo-v6");
@@ -1132,7 +1134,7 @@ V.cotizacion = () => {
   <thead><tr><th>Concepto</th><th>Origen</th><th class="n">Costo</th><th class="n">Margen</th><th class="n">Venta sin IVA</th></tr></thead><tbody>
   <tr><td>Equipos</td><td class="muted small">${R.lines.length} líneas</td><td class="n">${money(R.eqCost)}</td><td class="n">${R.eqSale?pct(1-R.eqCost/R.eqSale):"—"}</td><td class="n">${money(R.eqSale)}</td></tr>
   <tr><td>Materiales de instalación (cableado, canalización, accesorios)</td><td class="muted small"><a href="#" data-go="materiales">${R.bom.filter(r=>r.fin).length} ítems con reserva</a></td><td class="n">${money(R.matCost)}</td><td class="n">${num(P.margins.mat)} %</td><td class="n">${money(R.matSale)}</td></tr>
-  <tr><td>Mano de obra: mayor entre jornada técnica e instalación detallada, más transporte e imprevistos</td><td class="muted small"><a href="#" data-go="costos">${num(R.hours)} h · ${R.days} días</a></td><td class="n">${money(R.moCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.moSale)}</td></tr>
+  <tr><td>Instalación, configuración y puesta en marcha</td><td class="muted small"><a href="#" data-go="costos">${num(R.hours)} h · ${R.days} días</a></td><td class="n">${money(R.moCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.moSale)}</td></tr>
   <tr class="${P.inclMaint?"":"dim"}"><td>Mantenimiento anual (preventivo + correctivo) ${P.inclMaint?"":"— informativo, no suma"}</td><td class="muted small">${R.maint.length} tipos de equipo</td><td class="n">${money(R.maintCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.maintSale)}</td></tr>
   <tr class="tot"><td colspan="4">Total proyecto antes de IVA</td><td class="n">${money(R.sub)}</td></tr>
   <tr><td colspan="4">IVA ${num(P.iva)} %</td><td class="n">${money(R.iva)}</td></tr>
@@ -1255,13 +1257,17 @@ V.costos = () => {
  <div class="cols2">
  <div class="panel"><div class="ph"><h2>Mano de obra del proyecto</h2></div><div class="pb grid">
   ${fld("Técnicos", inp("P.labor.tech","n"))}${fld("Tarifa diaria × técnico", inp("P.labor.rate","n"))}${fld("Horas por jornada", inp("P.labor.hpd","n"))}
-  ${fld("Días (0 = automático: "+R.daysAuto+")", inp("P.labor.days","n"), "", "Automático = horas ÷ (técnicos × horas por jornada).")}${fld("Transporte de escaleras", inp("P.labor.transport","n"))}${fld("Imprevistos", inp("P.labor.imprev","n"))}
+  ${fld("Días (0 = automático: "+R.daysAuto+")", inp("P.labor.days","n"), "", "Automático = horas ÷ (técnicos × horas por jornada).")}${fld("Transporte de escaleras", inp("P.labor.transport","n"), "", "Valor fijo por proyecto. Base en Empresa y marca.")}${fld("Imprevistos", inp("P.labor.imprev","n"), "", "Varía según la obra. Base en Empresa y marca.")}
  </div><div class="tw"><table class="t"><tbody>
   <tr><td>Horas estimadas</td><td class="n">${num(R.hours)} h</td></tr>
   <tr><td>Referencia jornada técnica (${num(L.tech)} × ${R.days} días × ${money(L.rate)})</td><td class="n">${money(R.jornada)}</td></tr>
   <tr><td>Instalación detallada por actividad</td><td class="n">${money(R.instDetail)}</td></tr>
   <tr><td>Base adoptada (la mayor de las dos)</td><td class="n">${money(R.moBase)}</td></tr>
-  <tr class="tot"><td>Costo mano de obra (+ transporte + imprevistos)</td><td class="n">${money(R.moCost)}</td></tr>
+  <tr><td>+ Transporte de escaleras (fijo)</td><td class="n">${money(R.eqUnits?+L.transport||0:0)}</td></tr>
+  <tr><td>+ Imprevistos</td><td class="n">${money(R.eqUnits?+L.imprev||0:0)}</td></tr>
+  <tr class="tot"><td>Costo mano de obra</td><td class="n">${money(R.moCost)}</td></tr>
+  <tr><td>Venta al cliente (÷ ${num(1-P.margins.mo/100)} · margen ${num(P.margins.mo)} %)</td><td class="n"><b>${money(R.moSale)}</b></td></tr>
+  <tr><td colspan="2" class="small muted">El cliente ve un solo valor: “Instalación, configuración y puesta en marcha”. Transporte e imprevistos no aparecen por separado en la propuesta.</td></tr>
  </tbody></table></div></div>
  <div class="panel"><div class="ph"><h2>Financiación de la implementación</h2><span class="hint">No incluye monitoreo ni mantenimiento</span></div><div class="pb grid">
   ${fld("Tasa de interés mensual %", inp("P.fin.rate","n"), "", "Cuota fija (sistema francés, función PMT de Excel).")}
@@ -1429,6 +1435,7 @@ V.marca = () => {
   ${S.svcCosts.map((c,i)=>`<tr><td style="min-width:180px">${inp("S.svcCosts."+i+".n")}</td><td>${sel("S.svcCosts."+i+".mode",[["apto","Por apartamento"],["fijo","Fijo por edificio"],["cant","Cantidad × valor"]])}</td><td class="n">${inp("S.svcCosts."+i+".v","n")}</td><td><button class="x" data-act="delBaseSC" data-i="${i}">×</button></td></tr>`).join("")}
   </tbody></table></div><div class="pb"><button class="btn sm" data-act="addBaseSC">+ Costo base</button></div></div>
  <div class="panel"><div class="ph"><h2>Seguimiento y orden de trabajo</h2></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">
+  <div><p class="subh">Mano de obra base (se copia a cada proyecto nuevo)</p><div class="grid">${fld("Técnicos", inp("S.laborBase.tech","n"))}${fld("Tarifa diaria × técnico", inp("S.laborBase.rate","n"))}${fld("Horas por jornada", inp("S.laborBase.hpd","n"))}${fld("Transporte de escaleras (fijo)", inp("S.laborBase.transport","n"))}${fld("Imprevistos (base)", inp("S.laborBase.imprev","n"))}</div></div>
   ${fld("Mensaje de WhatsApp para seguimiento", inp("S.brand.wa","area",'style="min-height:110px"'), "", "Variables: {contacto} {cliente} {num} {total} {asesor} {empresa} {fecha}.")}
   ${fld("Lista de verificación de entrega (una por línea)", inp("S.texts.checklist","lines",'style="min-height:190px"'), "", "Aparece en la orden de trabajo para que el técnico marque cada prueba.")}
  </div></div>
@@ -1575,7 +1582,7 @@ const A = {
  addFree(){ proj().lines.push({id:uid("l"), cat:null, ref:"", name:"", qty:1, cost:0, sys:S.systems[0], profile:"-"}); },
  delLine(d){ proj().lines.splice(+d.i,1); proj().updated = Date.now(); },
  resetCost(d){ delete proj().lines[+d.i].cost; },
- newProj(){ const cur = proj(); const svc = clone(cur.svc); svc.tarifa = null; svc.desc = 0; svc.prev = null; svc.corr = null; svc.fisico = 0; svc.costs = clone(S.svcCosts || DEF_PARAMS.svc.costs); const lab = clone(cur.labor); lab.days = 0; lab.transport = 0; lab.imprev = 0;
+ newProj(){ const cur = proj(); const svc = clone(cur.svc); svc.tarifa = null; svc.desc = 0; svc.prev = null; svc.corr = null; svc.fisico = 0; svc.costs = clone(S.svcCosts || DEF_PARAMS.svc.costs); const lab = Object.assign(clone(cur.labor), clone(S.laborBase || DEF_PARAMS.labor)); lab.days = 0;
   const p = newProject({margins:clone(cur.margins), iva:cur.iva, fin:clone(cur.fin), svc, labor:lab}, S.brand); p.num = nextNum(); S.projects[p.id] = p; S.active = p.id; VIEW = "proyecto"; toast("Proyecto nuevo en blanco"); },
  dupProj(){ const p = clone(proj()); p.id = uid("p"); p.num = nextNum(); p.client += " (copia)"; p.history = []; p.status = "borrador"; p.updated = Date.now(); S.projects[p.id] = p; S.active = p.id; toast("Proyecto duplicado"); },
  delProj(){ arm("btnDelProj", ()=>{ if (Object.keys(S.projects).length<=1){ toast("Debe quedar al menos un proyecto"); return; } const p = S.projects[S.active]; trashOnDisk(p); delete S.projects[S.active]; S.active = Object.keys(S.projects)[0]; commit(); toast(DISK.ok?"Proyecto enviado a la papelera de la carpeta":"Proyecto eliminado"); }); return "noop"; },
