@@ -1284,8 +1284,8 @@ V.reglas = () => {
     ${fld("Metros de cable incluidos en la tarifa", inp(b+".incCable","n"), "", (()=>{ const cab = p.mats.reduce((a,r)=>{ const mid = r.m==="@UTP"?proj().utp:r.m, k = R.mById[mid]?.inst; return a + ((k==="utp"||k==="cable") ? (+r.q||0) : 0); },0); const inc = Math.min(+p.incCable||0, cab); return "El equipo lleva "+num(cab)+" m de cable: "+num(inc)+" m van dentro de la tarifa y "+num(cab-inc)+" m se cobran por metro."; })())}
     ${fld("Metros de tubo incluidos en la tarifa", inp(b+".incTube","n"), "", "Máximo los metros de tubo por unidad ("+num(p.tm)+" m).")}
     ${fld("Qué incluye la instalación", inp(b+".incText","area",'style="min-height:54px" placeholder="Ej.: montaje, caja de paso, conexión y 3 m de cable"'), "wide", "Sale en la orden de trabajo para que el técnico sepa el alcance.")}</div></div>
-   <div><p class="subh">Mantenimiento</p><div class="grid">
-    ${fld("Visitas preventivas / año", inp(b+".pv","n"))}${fld("Valor visita preventiva", inp(b+".pvv","n"))}${fld("% de equipos que fallan", inp(b+".cf","n"), "", "Correctivo = cant × % × fallos × valor")}${fld("Fallos por año", inp(b+".cv","n"))}${fld("Valor por fallo (correctivo)", inp(b+".cvv","n"))}</div></div>
+   ${isDirect()?`<div class="small muted">Mantenimiento: no aplica en venta directa. Estos valores solo se usan en cotizaciones con monitoreo.</div>`:`<div><p class="subh">Mantenimiento</p><div class="grid">
+    ${fld("Visitas preventivas / año", inp(b+".pv","n"))}${fld("Valor visita preventiva", inp(b+".pvv","n"))}${fld("% de equipos que fallan", inp(b+".cf","n"), "", "Correctivo = cant × % × fallos × valor")}${fld("Fallos por año", inp(b+".cv","n"))}${fld("Valor por fallo (correctivo)", inp(b+".cvv","n"))}</div></div>`}
    <div class="row"><button class="btn sm danger" data-act="delProf" data-i="${i}" id="delProf_${i}">Eliminar regla</button><span class="small muted">Los equipos del catálogo que usen esta regla quedarán sin regla.</span></div>
   </div></details>`;
  }).join("");
