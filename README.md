@@ -86,3 +86,16 @@ El tipo se puede cambiar en cualquier momento desde el proyecto; los equipos y c
 - El consecutivo (por ejemplo `COT-2026-004`) **sigue a la cotización más alta que exista** en el año. Si tiene de la 001 a la 004 y borra la 004, la próxima vuelve a ser la 004. Si borra una intermedia (la 002), la próxima sigue siendo la siguiente a la más alta.
 - En Empresa y marca se edita el prefijo y, si hace falta, un número desde el cual continuar (para seguir una numeración anterior).
 - Se pueden borrar todos los proyectos. Si la carpeta de datos está vinculada, lo borrado queda en `papelera/`.
+
+## Mano de obra sin doble cobro (v15)
+
+- Cada regla de equipo indica cuántos **metros de cable y de tubo van incluidos en su tarifa** de instalación (por ejemplo, cámara IP: $90.000 con caja, montaje y 3 m de cable). Esos metros no se cobran otra vez por metro.
+- **Qué incluye la instalación**: texto por equipo que sale en la orden de trabajo.
+- **Dificultad de la obra** por proyecto (normal, alturas, edificio ocupado, obra difícil o factor propio): multiplica horas y valores de instalación.
+- **Horas productivas por técnico al día**: base para calcular los días.
+
+## Venta directa sin mantenimientos y precio por punto (v16)
+
+- En venta directa no se calculan ni se muestran mantenimientos preventivos ni correctivos: solo mano de obra.
+- **Precio de instalación por punto** (Costos): equipo + su cable y tubo cobrados por metro, en horas, costo y venta, para comparar con el mercado.
+- Botón **Aplicar tiempos de referencia** (Reglas): cámara IP 1 h por punto, cable UTP 0,05 h/m, 6 h productivas por técnico.

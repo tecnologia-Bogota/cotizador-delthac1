@@ -392,9 +392,9 @@ const DEF_RESERVES = [
 
 // perfil: id, nombre, materiales [[mat, cant]], tubo, m tubo/und, h/und, tarifa/und, prev visitas, valor prev, corr visitas, valor corr
 // mantenimiento: preventivo = cant × visitas/año × valor visita · correctivo = cant × % equipos que fallan × fallos/año × valor por fallo
-const P_ = (id,name,mats,h,rate,m) => ({id,name,mats:mats.map(([m,q])=>({m,q})),tube:"emt12",tm:0,h,rate,pv:m?m[0]:2,pvv:m?m[1]:100000,cf:45,cv:m?m[2]:2,cvv:m?m[3]:65000});
+const P_ = (id,name,mats,h,rate,m) => ({id,name,mats:mats.map(([m,q])=>({m,q})),tube:"emt12",tm:0,h,rate,incCable:0,incTube:0,incText:"",pv:m?m[0]:2,pvv:m?m[1]:100000,cf:45,cv:m?m[2]:2,cvv:m?m[3]:65000});
 const DEF_PROFILES = [
- P_("camip","Cámara IP",[["@UTP",30],["rj45",2],["caja10",1],["chazo14",4],["tgol",4]],2,90000),
+ Object.assign(P_("camip","Cámara IP",[["@UTP",30],["rj45",2],["caja10",1],["chazo14",4],["tgol",4]],2,90000),{incCable:3,incText:"Montaje de la cámara con su caja de paso, conexión, configuración y los primeros 3 m de cable."}),
  P_("lector","Lectora facial / controlador de acceso",[["@UTP",30],["rj45",2],["chazo14",4],["tgol",4]],3,201000),
  P_("chapa","Kit chapa magnética",[["@UTP",30],["tauto",8]],4,227000),
  P_("anun","Anunciador / sirena exterior",[["@UTP",30],["chazo14",2],["tgol",2]],1.5,73000),
@@ -520,7 +520,7 @@ const LOST_REASONS = [["precio","Precio"],["competencia","Eligió a la competenc
 const DEF_PARAMS = {
  margins:{eq:23,mat:23,mo:23,min:20}, iva:19,
  fin:{rate:1.2,nA:24,nB:3,aiu:10,base:"sin",bNoInt:true},
- labor:{tech:2,rate:120000,hpd:8,days:0,transport:350000,imprev:650000},
+ labor:{tech:2,rate:120000,hpd:8,days:0,transport:350000,imprev:650000,factor:1},
  svc:{mode:"virtual",tarifa:null,aiu:10,adm:9.12,vta:0.62,desc:0,prev:null,corr:null,visita:201347.5,maintSrc:"contrato",fisico:0,fisicoName:"Servicio de vigilancia física 12 h diurno, lunes a domingo",
   costs:[{n:"Operador portería virtual",mode:"apto",v:0,q:0},{n:"Operador monitoreo y seguridad",mode:"apto",v:73623.96,q:0},{n:"Licencia Intelbras",mode:"fijo",v:256000,q:0},{n:"Licencia Hipcam",mode:"fijo",v:0,q:0},{n:"Licencia Softguard",mode:"apto",v:2500,q:0},{n:"Capacitación (prorrateo mensual)",mode:"fijo",v:26998,q:0},{n:"Plan de datos",mode:"fijo",v:10000,q:0},{n:"Reacciones alarmas",mode:"fijo",v:426557,q:0}]}
 };
@@ -594,9 +594,11 @@ function upgrade(st){
  st.svcModes ||= clone(DEF_SVC_MODES); st.licRules ||= clone(DEF_LIC_RULES); st.licRules.forEach(r=>{ if (r.id==="hipcam" && r.base==="n11"){ r.base = "n12"; r.extra = "n13"; } }); st.brand.wa ||= DEF_WA; st.texts.checklist ||= clone(DEF_CHECKLIST);
  st.svcCosts ||= clone(DEF_PARAMS.svc.costs);
  st.laborBase ||= clone(DEF_PARAMS.labor);
+ if (!st.patches.includes("incluye-v15")){ st.profiles.forEach(p=>{ p.incCable ??= 0; p.incTube ??= 0; p.incText ??= ""; if (p.id==="camip" && !p.incCable){ p.incCable = 3; p.incText ||= "Montaje de la cámara con su caja de paso, conexión, configuración y los primeros 3 m de cable."; } }); Object.values(st.projects).forEach(p=>{ if (p.labor) p.labor.factor ??= 1; }); st.patches.push("incluye-v15"); }
  delete st.seq; st.seqStart ||= {};
  st.seqPrefix ||= "COT";
  st.textsDirect ||= clone(DEF_TEXTS_DIRECT); Object.keys(DEF_TEXTS_DIRECT).forEach(k=>{ st.textsDirect[k] ??= clone(DEF_TEXTS_DIRECT[k]); });
+ if (Array.isArray(st.textsDirect.capacidades)) st.textsDirect.capacidades = st.textsDirect.capacidades.map(x=>x==="Soporte y mantenimiento posventa."?"Soporte técnico posventa.":x);
  if (!st.patches.includes("tipo-v11")){ Object.values(st.projects).forEach(p=>{ if (!p.kind && ((p.lines||[]).length || p.client)) p.kind = "monitoreo"; }); st.patches.push("tipo-v11"); }
  if (!st.patches.includes("mo-base-v8")){ Object.values(st.projects).forEach(p=>{ if (p.labor && !+p.labor.transport && !+p.labor.imprev){ p.labor.transport = st.laborBase.transport; p.labor.imprev = st.laborBase.imprev; } }); st.patches.push("mo-base-v8"); }
  if (!st.patches.includes("monitoreo-fijo-v6")){
@@ -798,9 +800,30 @@ function compute(P = proj()){
  const lin = {utp:0,cable:0,emt:0,pvc:0};
  R.bom.forEach(r=>{ if (!r.m.inst || r.off) return; lin[r.m.inst] += (r.m.inst==="emt"||r.m.inst==="pvc") ? r.base * (+r.m.len||0) : r.base; });
  R.lin = lin;
- Object.entries(S.linear).forEach(([k,L])=>{ if (lin[k]>0) acts.push({name:L.name, qty:lin[k], un:"ML", h:+L.h, rate:+L.rate, kind:"lin"}); });
- Object.entries(cnt).forEach(([pid,n])=>{ const pr = prById[pid]; acts.push({name:pr.name, qty:n, un:"UND", h:+pr.h||0, rate:+pr.rate||0, kind:"eq", pid}); });
- acts.forEach(a=>{ a.ht = a.qty*a.h; a.total = a.qty*a.rate; });
+ // Metros incluidos en la tarifa de cada equipo: no se cobran otra vez por metro
+ const incl = {utp:0,cable:0,emt:0,pvc:0}; R.inclDetail = [];
+ Object.entries(cnt).forEach(([pid,n])=>{ const pr = prById[pid];
+  const cabU = {utp:0,cable:0}; pr.mats.forEach(r=>{ const mid = r.m==="@UTP" ? P.utp : r.m, k = mById[mid]?.inst; if (k==="utp"||k==="cable") cabU[k] += +r.q||0; });
+  let left = +pr.incCable||0; ["utp","cable"].forEach(k=>{ const take = Math.min(left, cabU[k]); if (take>0){ incl[k] += take*n; left -= take; } });
+  const tk = mById[pr.tube]?.inst; const tIn = Math.min(+pr.incTube||0, +pr.tm||0); if (tIn>0 && (tk==="emt"||tk==="pvc")) incl[tk] += tIn*n;
+  if ((+pr.incCable||0)>0 || tIn>0) R.inclDetail.push(pr.name+": "+num(n)+" × "+[pr.incCable?num(Math.min(+pr.incCable,cabU.utp+cabU.cable))+" m cable":"", tIn?num(tIn)+" m tubo":""].filter(Boolean).join(" + "));
+ });
+ R.incl = incl; R.linCharged = {};
+ Object.entries(S.linear).forEach(([k,L])=>{ const q = Math.max(0, lin[k] - incl[k]); R.linCharged[k] = q; if (q>0) acts.push({name:L.name+(incl[k]?" (sin "+num(incl[k])+" m incluidos en equipos)":""), qty:q, un:"ML", h:+L.h, rate:+L.rate, kind:"lin"}); });
+ Object.entries(cnt).forEach(([pid,n])=>{ const pr = prById[pid]; acts.push({name:pr.name, note:pr.incText||"", qty:n, un:"UND", h:+pr.h||0, rate:+pr.rate||0, kind:"eq", pid}); });
+ // Factor de dificultad del proyecto (alturas, edificio ocupado, obra difícil…)
+ const fac = R.factor = Math.max(0.1, +(P.labor.factor||1));
+ acts.forEach(a=>{ a.ht = a.qty*a.h*fac; a.total = a.qty*a.rate*fac; });
+ // Precio de instalación por punto (equipo + su cable y tubo cobrados por metro) para comparar con el mercado
+ R.perPoint = Object.entries(cnt).map(([pid,n])=>{ const pr = prById[pid];
+  const cab = {utp:0,cable:0}; pr.mats.forEach(r=>{ const mid = r.m==="@UTP" ? P.utp : r.m, k = mById[mid]?.inst; if (k==="utp"||k==="cable") cab[k] += +r.q||0; });
+  let left = +pr.incCable||0; const ch = {}; ["utp","cable"].forEach(k=>{ const t = Math.min(left, cab[k]); left -= t; ch[k] = cab[k]-t; });
+  const tk = mById[pr.tube]?.inst, tCh = (tk==="emt"||tk==="pvc") ? Math.max(0,(+pr.tm||0)-(+pr.incTube||0)) : 0;
+  const cabCost = ch.utp*(+S.linear.utp.rate||0) + ch.cable*(+S.linear.cable.rate||0), tubCost = tCh*(+(S.linear[tk]?.rate)||0);
+  const hrs = ((+pr.h||0) + ch.utp*(+S.linear.utp.h||0) + ch.cable*(+S.linear.cable.h||0) + tCh*(+(S.linear[tk]?.h)||0))*fac;
+  const cost = ((+pr.rate||0) + cabCost + tubCost)*fac;
+  return {name:pr.name, qty:n, rate:+pr.rate||0, inc:+pr.incCable||0, cabM:ch.utp+ch.cable, cabCost, tubM:tCh, tubCost, hrs, cost, sale:pv(cost, M.mo)};
+ });
  R.acts = acts;
  R.hours = acts.reduce((a,x)=>a+x.ht,0); R.instDetail = acts.reduce((a,x)=>a+x.total,0);
  const L = P.labor;
@@ -811,14 +834,15 @@ function compute(P = proj()){
  R.moCost = (eqUnits>0 ? R.moBase + (+L.transport||0) + (+L.imprev||0) : 0);
  R.moSale = pv(R.moCost, M.mo);
  // mantenimiento
- R.maint = Object.entries(cnt).map(([pid,n])=>{ const p = prById[pid]; const cf = p.cf==null?100:+p.cf; return {name:p.name, qty:n, pv:+p.pv, pvv:+p.pvv, pt:n*p.pv*p.pvv, cf, cv:+p.cv, cvv:+p.cvv, ct:n*(cf/100)*p.cv*p.cvv}; });
+ R.maint = isDirect(P) ? [] : Object.entries(cnt).map(([pid,n])=>{ const p = prById[pid]; const cf = p.cf==null?100:+p.cf; return {name:p.name, qty:n, pv:+p.pv, pvv:+p.pvv, pt:n*p.pv*p.pvv, cf, cv:+p.cv, cvv:+p.cvv, ct:n*(cf/100)*p.cv*p.cvv}; });
  R.prev = R.maint.reduce((a,x)=>a+x.pt,0); R.corr = R.maint.reduce((a,x)=>a+x.ct,0);
  R.maintCost = R.prev + R.corr; R.maintSale = pv(R.maintCost, M.mo);
  // totales
  R.eqCost = R.lines.reduce((a,x)=>a+x.costT,0); R.eqSale = R.lines.reduce((a,x)=>a+x.saleT,0);
  R.impl = R.eqSale + R.matSale + R.moSale;
- R.sub = R.impl + (P.inclMaint ? R.maintSale : 0);
- R.cost = R.eqCost + R.matCost + R.moCost + (P.inclMaint ? R.maintCost : 0);
+ const withMaint = P.inclMaint && !isDirect(P);
+ R.sub = R.impl + (withMaint ? R.maintSale : 0);
+ R.cost = R.eqCost + R.matCost + R.moCost + (withMaint ? R.maintCost : 0);
  // IVA: venta directa = IVA pleno (19 %) · con monitoreo = IVA preferencial (base gravable 10 % × 19 % = 1,9 %)
  R.ivaPref = (+(P.fin.aiu ?? 10)) * (+P.iva||0) / 100;
  R.ivaRate = isDirect(P) ? (+P.iva||0) : R.ivaPref;
@@ -853,7 +877,7 @@ const isDirect = p => (p||proj()).kind === "directa";
 const DEF_TEXTS_DIRECT = {
  presentacion:"{empresa} presenta esta propuesta para el suministro, instalación y puesta en marcha de los sistemas de seguridad electrónica requeridos por {cliente}. La solución fue dimensionada según las necesidades del inmueble e incluye equipos, materiales, mano de obra calificada, configuración y capacitación.",
  quienes:"Somos una empresa dedicada al diseño, suministro e instalación de sistemas de seguridad electrónica: videovigilancia, control de acceso, alarmas, redes y respaldo eléctrico. Trabajamos con marcas reconocidas, personal técnico calificado y acompañamiento posventa.",
- capacidades:["Diseño e ingeniería de sistemas de seguridad electrónica.","Suministro de equipos de marcas reconocidas.","Instalación con personal técnico calificado.","Configuración de redes, grabación y acceso remoto.","Soporte y mantenimiento posventa."],
+ capacidades:["Diseño e ingeniería de sistemas de seguridad electrónica.","Suministro de equipos de marcas reconocidas.","Instalación con personal técnico calificado.","Configuración de redes, grabación y acceso remoto.","Soporte técnico posventa."],
  compromiso:["Soluciones ajustadas a las condiciones del inmueble.","Cumplimiento en los tiempos de entrega.","Trabajo limpio, ordenado y seguro.","Capacitación y entrega documentada.","Atención oportuna de garantías."],
  servicios:["Suministro de equipos nuevos con garantía de fábrica","Materiales de instalación: cableado, canalización y accesorios","Instalación por personal técnico calificado","Configuración y puesta en marcha de los sistemas","Acceso remoto y aplicación móvil cuando el equipo lo permita","Pruebas de funcionamiento y entrega","Capacitación al personal encargado","Soporte técnico posventa"],
  condiciones:["Forma de pago: 50 % de anticipo para iniciar y 50 % contra entrega.","Tiempo de ejecución estimado: {diasobra} días a partir del anticipo.","Garantía de equipos según fabricante; garantía de instalación de 6 meses.","Obras civiles, resanes y pintura no incluidos salvo que se indiquen.","Sujeto a disponibilidad de inventario al momento de la aprobación.","Precios en pesos colombianos con IVA discriminado."],
@@ -1127,10 +1151,10 @@ V.proyecto = () => {
  <div class="pb grid">
   ${fld("Margen equipos %", inp("P.margins.eq","n"), "", "Ganancia sobre el precio de venta de cada equipo. Se puede cambiar por línea en Cotización.")}
   ${fld("Margen materiales %", inp("P.margins.mat","n"), "", "Se aplica al costo total de la lista de materiales (cable, tubería, accesorios).")}
-  ${fld("Margen mano de obra y mantenimiento %", inp("P.margins.mo","n"), "", "Se aplica al costo de instalación y al mantenimiento anual.")}
+  ${fld(isDirect()?"Margen mano de obra %":"Margen mano de obra y mantenimiento %", inp("P.margins.mo","n"), "", isDirect()?"Se aplica al costo de instalación.":"Se aplica al costo de instalación y al mantenimiento anual.")}
   ${fld("Margen mínimo aceptable %", inp("P.margins.min","n"), "", "Piso comercial. Si el proyecto o una línea queda por debajo, la auditoría lo marca.")}
   ${fld("IVA %", inp("P.iva","n"), "", isDirect()?"Venta directa: el cliente paga IVA pleno del "+num(P.iva)+" % sobre el total.":"Con monitoreo: el cliente paga IVA preferencial = base gravable "+num(P.fin.aiu)+" % × "+num(P.iva)+" % = "+num(R.ivaPref)+" % sobre la implementación, las cuotas y el servicio.")}
-  ${fld("Mantenimiento anual en el total", `<div class="row">${inp("P.inclMaint","b")}<small class="muted">Suma al proyecto; nunca se financia</small></div>`, "", "Desmarcado: aparece en la propuesta como valor anual opcional.")}
+  ${isDirect()?"":fld("Mantenimiento anual en el total", `<div class="row">${inp("P.inclMaint","b")}<small class="muted">Suma al proyecto; nunca se financia</small></div>`, "", "Desmarcado: aparece en la propuesta como valor anual opcional.")}
  </div>
  <div class="pb"><div class="note"><b>Cómo se forma el precio.</b> El margen se calcula sobre el precio de venta, no sobre el costo: <b>Precio = Costo ÷ (1 − margen)</b>.
   Con ${num(m)} %, un equipo que cuesta ${money(c0)} se vende a <b>${money(pv0)}</b> y deja ${money(pv0-c0)}, que es el ${num(m)} % del precio.
@@ -1184,7 +1208,7 @@ V.cotizacion = () => {
   body += `<tr class="sub"><td colspan="8">Subtotal ${esc(s)}</td><td class="n">${money(sv)}</td><td class="n muted">${money(sc)}</td><td></td></tr>`;
  });
  const empty = !R.lines.length ? `<div class="empty"><b>La cotización está en blanco</b><span>Busque un equipo del catálogo arriba, indique la cantidad y pulse Agregar. Cada equipo trae su regla técnica y genera sus materiales automáticamente.</span></div>` : "";
- return `<div class="vhead"><div><h1 class="vt">Cotización</h1><p class="vsub">Seleccione equipos del catálogo. Cada equipo trae su regla técnica, que genera materiales, tubería, horas de instalación y mantenimiento automáticamente.</p></div></div>
+ return `<div class="vhead"><div><h1 class="vt">Cotización</h1><p class="vsub">Seleccione equipos del catálogo. Cada equipo trae su regla técnica, que genera materiales, tubería${isDirect()?" y horas de instalación":", horas de instalación y mantenimiento"} automáticamente.</p></div></div>
  <div class="panel"><div class="pb row">
   <select id="addCat" style="flex:1;min-width:240px"><option value="">Buscar equipo del catálogo…</option>${catOptions()}</select>
   <input type="number" id="addQty" value="1" min="1" step="1" style="width:80px" aria-label="Cantidad">
@@ -1197,7 +1221,7 @@ V.cotizacion = () => {
   <tr><td>Equipos</td><td class="muted small">${R.lines.length} líneas</td><td class="n">${money(R.eqCost)}</td><td class="n">${R.eqSale?pct(1-R.eqCost/R.eqSale):"—"}</td><td class="n">${money(R.eqSale)}</td></tr>
   <tr><td>Materiales de instalación (cableado, canalización, accesorios)</td><td class="muted small"><a href="#" data-go="materiales">${R.bom.filter(r=>r.fin).length} ítems con reserva</a></td><td class="n">${money(R.matCost)}</td><td class="n">${num(P.margins.mat)} %</td><td class="n">${money(R.matSale)}</td></tr>
   <tr><td>Instalación, configuración y puesta en marcha</td><td class="muted small"><a href="#" data-go="costos">${num(R.hours)} h · ${R.days} días</a></td><td class="n">${money(R.moCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.moSale)}</td></tr>
-  <tr class="${P.inclMaint?"":"dim"}"><td>Mantenimiento anual (preventivo + correctivo) ${P.inclMaint?"":"— informativo, no suma"}</td><td class="muted small">${R.maint.length} tipos de equipo</td><td class="n">${money(R.maintCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.maintSale)}</td></tr>
+  ${isDirect()?"":`<tr class="${P.inclMaint?"":"dim"}"><td>Mantenimiento anual (preventivo + correctivo) ${P.inclMaint?"":"— informativo, no suma"}</td><td class="muted small">${R.maint.length} tipos de equipo</td><td class="n">${money(R.maintCost)}</td><td class="n">${num(P.margins.mo)} %</td><td class="n">${money(R.maintSale)}</td></tr>`}
   <tr class="tot"><td colspan="4">Total proyecto antes de IVA</td><td class="n">${money(R.sub)}</td></tr>
   <tr><td colspan="4">${esc(R.ivaLabel)}</td><td class="n">${money(R.iva)}</td></tr>
   <tr class="tot"><td colspan="4">Total proyecto con IVA</td><td class="n">${money(R.total)}</td></tr>
@@ -1256,8 +1280,12 @@ V.reglas = () => {
   <div class="pbody">
    <div class="grid">${fld("Nombre de la regla", inp(b+".name"))}${fld("Tubería", sel(b+".tube", tubeOpts))}${fld("Metros de tubo por unidad", inp(b+".tm","n"))}</div>
    <div><p class="subh">Materiales por unidad</p><div class="tw"><table class="t"><thead><tr><th>Material</th><th class="n">Cant / und</th><th class="n">Total proyecto</th><th></th></tr></thead><tbody>${mrows}</tbody></table></div><button class="btn sm" data-act="addPM" data-i="${i}" style="margin-top:6px">+ Material</button></div>
-   <div class="grid">${fld("Horas instalación / und", inp(b+".h","n"))}${fld("Tarifa instalación / und", inp(b+".rate","n"))}
-    ${fld("Visitas preventivas / año", inp(b+".pv","n"))}${fld("Valor visita preventiva", inp(b+".pvv","n"))}${fld("% de equipos que fallan", inp(b+".cf","n"), "", "Correctivo = cant × % × fallos × valor")}${fld("Fallos por año", inp(b+".cv","n"))}${fld("Valor por fallo (correctivo)", inp(b+".cvv","n"))}</div>
+   <div><p class="subh">Instalación</p><div class="grid">${fld("Horas instalación / und", inp(b+".h","n"))}${fld("Tarifa instalación / und", inp(b+".rate","n"))}
+    ${fld("Metros de cable incluidos en la tarifa", inp(b+".incCable","n"), "", (()=>{ const cab = p.mats.reduce((a,r)=>{ const mid = r.m==="@UTP"?proj().utp:r.m, k = R.mById[mid]?.inst; return a + ((k==="utp"||k==="cable") ? (+r.q||0) : 0); },0); const inc = Math.min(+p.incCable||0, cab); return "El equipo lleva "+num(cab)+" m de cable: "+num(inc)+" m van dentro de la tarifa y "+num(cab-inc)+" m se cobran por metro."; })())}
+    ${fld("Metros de tubo incluidos en la tarifa", inp(b+".incTube","n"), "", "Máximo los metros de tubo por unidad ("+num(p.tm)+" m).")}
+    ${fld("Qué incluye la instalación", inp(b+".incText","area",'style="min-height:54px" placeholder="Ej.: montaje, caja de paso, conexión y 3 m de cable"'), "wide", "Sale en la orden de trabajo para que el técnico sepa el alcance.")}</div></div>
+   <div><p class="subh">Mantenimiento</p><div class="grid">
+    ${fld("Visitas preventivas / año", inp(b+".pv","n"))}${fld("Valor visita preventiva", inp(b+".pvv","n"))}${fld("% de equipos que fallan", inp(b+".cf","n"), "", "Correctivo = cant × % × fallos × valor")}${fld("Fallos por año", inp(b+".cv","n"))}${fld("Valor por fallo (correctivo)", inp(b+".cvv","n"))}</div></div>
    <div class="row"><button class="btn sm danger" data-act="delProf" data-i="${i}" id="delProf_${i}">Eliminar regla</button><span class="small muted">Los equipos del catálogo que usen esta regla quedarán sin regla.</span></div>
   </div></details>`;
  }).join("");
@@ -1297,7 +1325,7 @@ V.reglas = () => {
  const res = S.reserves.map((r,i)=>`<tr><td>${inp("S.reserves."+i+".name")}</td><td class="n">${inp("S.reserves."+i+".pct","n",'class="w60"')} %</td><td class="small muted">${S.materials.filter(m=>m.res===r.id).length} materiales</td></tr>`).join("");
  const lin = Object.entries(S.linear).map(([k,L])=>`<tr><td>${esc(L.name)}</td><td class="n">${inp("S.linear."+k+".rate","n")}</td><td class="n">${inp("S.linear."+k+".h","n",'class="w60"')}</td><td class="n">${num(R.lin[k])} m</td></tr>`).join("");
  return `<div class="vhead"><div><h1 class="vt">Reglas técnicas</h1><p class="vsub">Aquí se define la ingeniería: qué consume cada equipo, qué accesorios lleva cada tubo y qué fijación lleva cada accesorio. Cambie un número y todo el proyecto se recalcula.</p></div>
- <div class="row"><button class="btn" data-act="addProf">+ Nueva regla de equipo</button><button class="btn danger" data-act="resetRules" id="btnResetRules">Restaurar reglas originales</button></div></div>
+ <div class="row"><button class="btn" data-act="refTimes" id="btnRefTimes" title="Cámara IP 1 h por punto, cable UTP 0,05 h/m, 6 h productivas por técnico">Aplicar tiempos de referencia</button><button class="btn" data-act="addProf">+ Nueva regla de equipo</button><button class="btn danger" data-act="resetRules" id="btnResetRules">Restaurar reglas originales</button></div></div>
  <div class="note">Canalización: <b>cantidad = grupos de N tubos × cantidad</b>. Con “grupos completos”, el accesorio aparece al completar el grupo (1 tubo no lleva unión; 2 tubos sí). Con “cualquier fracción”, un tubo suelto ya cuenta como grupo. EMT: cada tubo lleva 2 grapas doble ojo (4 chazos y 4 tornillos de 1/4"); cada 2 tubos, 1 unión; cada 3 tubos, 1 caja Rawelt 5800 y 2 terminales. Chazos y tornillos se suman por cada grapa y cada caja. Todo sale de la misma medida del tubo elegido.</div>
  <div class="panel"><div class="ph"><h2>1 · Reglas por equipo</h2><span class="hint">${S.profiles.length} reglas · abra una para editar materiales, tubería, instalación y mantenimiento</span></div><div class="pb">${profs}</div></div>
  <div style="display:flex;flex-direction:column;gap:12px"><h2 class="vt" style="font-size:20px;margin:6px 0 0">2 · Canalización por tubo</h2>${tubes}</div>
@@ -1311,17 +1339,20 @@ V.reglas = () => {
 
 V.costos = () => {
  const P = proj(), L = P.labor;
- const acts = R.acts.map(a=>`<tr><td>${esc(a.name)}</td><td class="n">${num(a.qty)} ${a.un}</td><td class="n">${num(a.h)}</td><td class="n">${num(a.ht)}</td><td class="n">${money(a.rate)}</td><td class="n">${money(a.total)}</td></tr>`).join("");
+ const acts = R.acts.map(a=>`<tr><td>${esc(a.name)}${a.note?`<div class="src">Incluye: ${esc(a.note)}</div>`:""}</td><td class="n">${num(a.qty)} ${a.un}</td><td class="n">${num(a.h)}</td><td class="n">${num(a.ht)}</td><td class="n">${money(a.rate)}</td><td class="n">${money(a.total)}</td></tr>`).join("");
  const mt = R.maint.map(m=>`<tr><td>${esc(m.name)}</td><td class="n">${num(m.qty)}</td><td class="n">${num(m.pv)} × ${money(m.pvv)}</td><td class="n">${money(m.pt)}</td><td class="n">${num(m.cf)} % × ${num(m.cv)} × ${money(m.cvv)}</td><td class="n">${money(m.ct)}</td></tr>`).join("");
  const pl = (p,lab) => `<tr class="grp"><td colspan="2">${lab}</td></tr><tr><td>Cuota base${p.noInt?" (sin interés)":""}</td><td class="n">${money(p.cuota)}</td></tr><tr><td>IVA preferencial ${num(R.ivaPref)} %</td><td class="n">${money(p.ivaC)}</td></tr><tr class="sub"><td>Cuota final</td><td class="n">${money(p.fin)}</td></tr><tr><td>Total pagado · intereses</td><td class="n">${money(p.totalPay)} · ${money(p.interest)}</td></tr><tr class="sub"><td>${isDirect()?"Cuota mensual":"Total mensual (monitoreo final + cuota)"}</td><td class="n">${money(R.svc.final + p.fin*(1-(+P.svc.desc||0)/100))}</td></tr>`;
  const am = R.amort.map(a=>`<tr><td class="n">${a.k}</td><td class="n">${money(a.ini)}</td><td class="n">${money(a.it)}</td><td class="n">${money(a.cap)}</td><td class="n">${money(a.c)}</td><td class="n">${money(Math.abs(a.fin)<1?0:a.fin)}</td></tr>`).join("");
- return `<div class="vhead"><div><h1 class="vt">Costos y financiación</h1><p class="vsub">Mano de obra por actividad, mantenimiento anual por equipo y plan de financiación de la implementación.</p></div></div>
+ return `<div class="vhead"><div><h1 class="vt">${isDirect()?"Costos y forma de pago":"Costos y financiación"}</h1><p class="vsub">${isDirect()?"Mano de obra por actividad y precio de instalación por punto. Venta directa: sin mantenimientos ni financiación.":"Mano de obra por actividad, mantenimiento anual por equipo y plan de financiación de la implementación."}</p></div></div>
  <div class="cols2">
  <div class="panel"><div class="ph"><h2>Mano de obra del proyecto</h2></div><div class="pb grid">
-  ${fld("Técnicos", inp("P.labor.tech","n"))}${fld("Tarifa diaria × técnico", inp("P.labor.rate","n"))}${fld("Horas por jornada", inp("P.labor.hpd","n"))}
+  ${fld("Técnicos", inp("P.labor.tech","n"))}${fld("Tarifa diaria × técnico", inp("P.labor.rate","n"))}${fld("Horas productivas por técnico al día", inp("P.labor.hpd","n"), "", "Horas reales de trabajo (sin desplazamientos ni permisos). Con 6 h los días salen más realistas que con 8.")}
+  ${fld("Dificultad de la obra", `<select id="f_labor_factor_preset" data-fac="1">${[[1,"Normal ×1,0"],[1.15,"Alturas / escalera ×1,15"],[1.3,"Edificio ocupado o en funcionamiento ×1,3"],[1.5,"Obra difícil: recintos cerrados, rutas largas ×1,5"]].map(([v,t])=>`<option value="${v}" ${+P.labor.factor===v?"selected":""}>${t}</option>`).join("")}${[1,1.15,1.3,1.5].includes(+P.labor.factor)?"":`<option selected>Personalizado ×${num(P.labor.factor)}</option>`}</select>`, "", "Multiplica horas y valores de instalación de este proyecto.")}
+  ${fld("Factor personalizado", inp("P.labor.factor","n"), "", "1 = normal. Ej.: 1,2 = 20 % más tiempo.")}
   ${fld("Días (0 = automático: "+R.daysAuto+")", inp("P.labor.days","n"), "", "Automático = horas ÷ (técnicos × horas por jornada).")}${fld("Transporte de escaleras", inp("P.labor.transport","n"), "", "Valor fijo por proyecto. Base en Empresa y marca.")}${fld("Imprevistos", inp("P.labor.imprev","n"), "", "Varía según la obra. Base en Empresa y marca.")}
  </div><div class="tw"><table class="t"><tbody>
-  <tr><td>Horas estimadas</td><td class="n">${num(R.hours)} h</td></tr>
+  <tr><td>Horas estimadas${R.factor!==1?" (con factor de dificultad ×"+num(R.factor)+")":""}</td><td class="n">${num(R.hours)} h</td></tr>
+  ${R.inclDetail.length?`<tr><td colspan="2" class="small muted">Metros que no se cobran aparte por estar dentro de la tarifa del equipo: ${esc(R.inclDetail.join(" · "))}</td></tr>`:""}
   <tr><td>Referencia jornada técnica (${num(L.tech)} × ${R.days} días × ${money(L.rate)})</td><td class="n">${money(R.jornada)}</td></tr>
   <tr><td>Instalación detallada por actividad</td><td class="n">${money(R.instDetail)}</td></tr>
   <tr><td>Base adoptada (la mayor de las dos)</td><td class="n">${money(R.moBase)}</td></tr>
@@ -1341,8 +1372,10 @@ V.costos = () => {
   ${fld("Valor a financiar", sel("P.fin.base", [["sin","Venta sin IVA"],["con","Venta con IVA"]]))}
  </div><div class="tw"><table class="t"><tbody><tr><td>Valor a financiar</td><td class="n"><b>${money(R.finBase)}</b></td></tr>${R.finBase?"":`<tr><td colspan="2"><div class="note warn" style="margin:4px 0"><b>No hay implementación para financiar.</b> Las cuotas quedan en $0 y el total mensual de las dos alternativas es solo el monitoreo: ${num(P.units)} unidades × ${money(R.svc.tarifa)} + IVA ${num(R.svc.ivaEf)} % = ${money(R.svc.final)}. Al agregar equipos, cada alternativa tendrá su propia cuota.</div></td></tr>`}${pl(R.planA,"Alternativa "+R.planA.n+" meses")}${pl(R.planB,"Alternativa "+R.planB.n+" meses")}</tbody></table></div></div>`}
  </div>
+ ${R.perPoint.length?`<div class="panel"><div class="ph"><h2>Precio de instalación por punto</h2><span class="hint">Equipo + su cable y tubo cobrados por metro · para comparar con el mercado</span></div><div class="tw"><table class="t"><thead><tr><th>Equipo</th><th class="n">Cant</th><th class="n">Tarifa equipo</th><th class="n">Cable cobrado</th><th class="n">Tubo cobrado</th><th class="n">Horas / punto</th><th class="n">Costo / punto</th><th class="n">Venta / punto</th></tr></thead><tbody>${R.perPoint.map(x=>`<tr><td>${esc(x.name)}${x.inc?`<div class="src">Tarifa incluye ${num(x.inc)} m de cable</div>`:""}</td><td class="n">${num(x.qty)}</td><td class="n">${money(x.rate)}</td><td class="n">${num(x.cabM)} m · ${money(x.cabCost)}</td><td class="n">${x.tubM?num(x.tubM)+" m · "+money(x.tubCost):"—"}</td><td class="n">${num(x.hrs)} h</td><td class="n"><b>${money(x.cost)}</b></td><td class="n">${money(x.sale)}</td></tr>`).join("")}</tbody></table></div>
+ <div class="pb small muted">Referencia de mercado en Colombia (2026): instalación de una cámara con montaje, conexión y configuración, desde unos $80.000; un kit de 4 cámaras, solo mano de obra, entre $425.000 y $700.000 (≈ $106.000 a $175.000 por cámara, según tubería y distancias). Tubería + cable por metro, solo mano de obra, entre $8.000 y $14.000.</div></div>`:""}
  <div class="panel"><div class="ph"><h2>Instalación por actividad</h2><span class="hint">Tarifas y horas se editan en Reglas</span></div><div class="tw"><table class="t"><thead><tr><th>Actividad</th><th class="n">Cantidad</th><th class="n">Horas / und</th><th class="n">Horas</th><th class="n">Tarifa</th><th class="n">Total</th></tr></thead><tbody>${acts || `<tr><td colspan="6" class="muted">Sin actividades: agregue equipos.</td></tr>`}<tr class="tot"><td colspan="3">Total instalación detallada</td><td class="n">${num(R.hours)}</td><td></td><td class="n">${money(R.instDetail)}</td></tr></tbody></table></div></div>
- <div class="panel"><div class="ph"><h2>Mantenimiento anual por equipo</h2><span class="hint">Preventivo = cant × visitas × valor · Correctivo = cant × % que falla × fallos/año × valor</span></div><div class="tw"><table class="t"><thead><tr><th>Equipo</th><th class="n">Cant</th><th class="n">Preventivo</th><th class="n">Total prev.</th><th class="n">Correctivo</th><th class="n">Total corr.</th></tr></thead><tbody>${mt || `<tr><td colspan="6" class="muted">Sin equipos.</td></tr>`}<tr class="tot"><td colspan="3">Total anual</td><td class="n">${money(R.prev)}</td><td></td><td class="n">${money(R.corr)}</td></tr></tbody></table></div></div>
+ ${isDirect()?"":`<div class="panel"><div class="ph"><h2>Mantenimiento anual por equipo</h2><span class="hint">Preventivo = cant × visitas × valor · Correctivo = cant × % que falla × fallos/año × valor</span></div><div class="tw"><table class="t"><thead><tr><th>Equipo</th><th class="n">Cant</th><th class="n">Preventivo</th><th class="n">Total prev.</th><th class="n">Correctivo</th><th class="n">Total corr.</th></tr></thead><tbody>${mt || `<tr><td colspan="6" class="muted">Sin equipos.</td></tr>`}<tr class="tot"><td colspan="3">Total anual</td><td class="n">${money(R.prev)}</td><td></td><td class="n">${money(R.corr)}</td></tr></tbody></table></div></div>`}
  ${isDirect()?"":`<details class="panel"><summary class="ph" style="cursor:pointer"><h2>Tabla de amortización · ${R.planA.n} meses</h2><span class="hint">Mostrar / ocultar</span></summary><div class="tw"><table class="t"><thead><tr><th class="n">Per.</th><th class="n">Saldo inicial</th><th class="n">Interés</th><th class="n">Capital</th><th class="n">Cuota</th><th class="n">Saldo final</th></tr></thead><tbody>${am}</tbody></table></div></details>`}`;
 };
 
@@ -1594,14 +1627,14 @@ function otData(){
   equipos:R.lines.map(x=>({sistema:x.sys, referencia:x.ref, descripcion:x.name, cantidad:x.qty})),
   materiales:R.bom.filter(r=>r.fin).map(r=>({grupo:r.m.grp, material:r.m.name, unidad:r.m.un, cantidad:r.fin, empaque:r.packs?r.packs+" x "+r.m.pack:""})),
   canalizacion:S.materials.filter(m=>+m.len>0 && R.tubes[m.id]?.meters).map(m=>({tubo:tubeShort(m), metros:R.tubes[m.id].meters, tubos:R.tubes[m.id].count})),
-  actividades:R.acts.map(a=>({actividad:a.name, cantidad:a.qty, unidad:a.un, horas:a.ht})),
+  actividades:R.acts.map(a=>({actividad:a.name, incluye:a.note||"", cantidad:a.qty, unidad:a.un, horas:a.ht})), factorDificultad:R.factor,
   tecnicos:+P.labor.tech||0, dias:R.days, horas:R.hours, checklist:S.texts.checklist||[], notas:P.follow||""};
 }
 function docOT(){
  const P = proj(), b = S.brand, d = otData();
  const eq = [...new Set(d.equipos.map(e=>e.sistema))].map(sy=>`<tr class="g"><td colspan="5">${esc(sy)}</td></tr>`+d.equipos.filter(e=>e.sistema===sy).map((e,i)=>`<tr><td>${i+1}</td><td>${esc(e.descripcion)}</td><td class="small">${esc(e.referencia)}</td><td class="n">${num(e.cantidad)}</td><td class="n">☐</td></tr>`).join("")).join("");
  const mats = [...new Set(d.materiales.map(m=>m.grupo))].map(g=>`<tr class="g"><td colspan="4">${esc(g)}</td></tr>`+d.materiales.filter(m=>m.grupo===g).map(m=>`<tr><td>${esc(m.material)}</td><td>${esc(m.unidad)}</td><td class="n"><b>${num(m.cantidad)}</b>${m.empaque?`<div class="small">${esc(m.empaque)}</div>`:""}</td><td class="n">☐</td></tr>`).join("")).join("");
- const acts = d.actividades.map(a=>`<tr><td>${esc(a.actividad)}</td><td class="n">${num(a.cantidad)} ${esc(a.unidad)}</td><td class="n">${num(a.horas)} h</td></tr>`).join("");
+ const acts = d.actividades.map(a=>`<tr><td>${esc(a.actividad)}${a.incluye?`<div class="small">Incluye: ${esc(a.incluye)}</div>`:""}</td><td class="n">${num(a.cantidad)} ${esc(a.unidad)}</td><td class="n">${num(a.horas)} h</td></tr>`).join("");
  const tubos = d.canalizacion.map(t=>`<tr><td>${esc(t.tubo)}</td><td class="n">${num(t.metros)} m</td><td class="n">${num(t.tubos)}</td></tr>`).join("");
  return `<div class="doc" data-page="${esc(b.page)}" style="--dc:${esc(b.primary)};--dc2:${esc(b.secondary)}"><section class="pg"><div class="inner"><table class="sheet"><thead><tr><td>${docHead("Orden de trabajo "+d.ot)}</td></tr></thead><tbody><tr><td>
   <div class="kv"><div><span>Cliente</span><b>${esc(P.client||"—")}</b></div><div><span>Dirección</span><b>${esc([P.address,P.city].filter(Boolean).join(", ")||"—")}</b></div><div><span>Contacto</span><b>${esc([P.contact,P.cphone].filter(Boolean).join(" · ")||"—")}</b></div></div>
@@ -1630,7 +1663,7 @@ function docBom(){
   rows += `<tr class="g"><td colspan="7">${esc(g)}</td></tr>` + rs.map(r=>`<tr><td>${esc(r.m.name)}</td><td>${esc(r.m.un)}</td><td class="n">${num(r.base)}</td><td class="n">${num(r.res)} %</td><td class="n"><b>${num(r.fin)}</b>${r.packs?`<div class="small">${r.packs} × ${num(r.m.pack)}</div>`:""}</td><td class="n">${money(r.m.cost)}</td><td class="n">${money(r.total)}</td></tr>`).join("")
    + `<tr class="s"><td colspan="6">Subtotal ${esc(g)}</td><td class="n">${money(rs.reduce((a,r)=>a+r.total,0))}</td></tr>`; });
  const tubes = S.materials.filter(m=>+m.len>0 && R.tubes[m.id].meters).map(m=>`<tr><td>${esc(m.name)}</td><td class="n">${num(R.tubes[m.id].meters)} m</td><td class="n">${num(R.tubes[m.id].count)}</td></tr>`).join("");
- const acts = R.acts.map(a=>`<tr><td>${esc(a.name)}</td><td class="n">${num(a.qty)} ${a.un}</td><td class="n">${num(a.ht)} h</td></tr>`).join("");
+ const acts = R.acts.map(a=>`<tr><td>${esc(a.name)}${a.note?`<div class="small">Incluye: ${esc(a.note)}</div>`:""}</td><td class="n">${num(a.qty)} ${a.un}</td><td class="n">${num(a.ht)} h</td></tr>`).join("");
  return `<div class="doc" data-page="${esc(b.page)}" style="--dc:${esc(b.primary)};--dc2:${esc(b.secondary)}"><section class="pg"><div class="inner"><table class="sheet"><thead><tr><td>${docHead("Lista de materiales · uso interno")}</td></tr></thead><tbody><tr><td>
   <div class="kv"><div><span>Costo materiales</span><b>${money(R.matCost)}</b></div><div><span>Cable UTP base / tubería base</span><b>${num(R.lin.utp)} m / ${num(R.lin.emt+R.lin.pvc)} m</b></div><div><span>Instalación</span><b>${num(R.hours)} h · ${R.days} días · ${num(P.labor.tech)} téc.</b></div></div>
   <table class="dtb"><thead><tr><th>Material</th><th>UN</th><th class="n">Base</th><th class="n">Reserva</th><th class="n">Comprar</th><th class="n">Costo unit</th><th class="n">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="7">Sin materiales.</td></tr>`}<tr class="T"><td colspan="6">Total materiales</td><td class="n">${money(R.matCost)}</td></tr></tbody></table>
@@ -1659,6 +1692,7 @@ const A = {
  delProjRow(d){ arm("dp_"+d.id, ()=>{ removeProject(d.id); }); return "noop"; },
  setKind(d){ const P = proj(), was = P.kind; applyKind(P, d.k); V._kind = false; P.updated = Date.now(); if (d.k==="directa" && VIEW==="monitoreo") VIEW = "proyecto"; toast(was ? "Tipo cambiado a: "+KINDS[d.k].short : "Proyecto nuevo · "+KINDS[d.k].short); },
  openKind(){ V._kind = true; },
+ refTimes(){ arm("btnRefTimes", ()=>{ const c = S.profiles.find(p=>p.id==="camip"); if (c) c.h = 1; S.linear.utp.h = 0.05; S.linear.cable.h = 0.06; S.laborBase.hpd = 6; if (!noProjects()) proj().labor.hpd = 6; commit(); toast("Tiempos de referencia aplicados: cámara 1 h, UTP 0,05 h/m, 6 h productivas al día"); }); return "noop"; },
  closeKind(){ V._kind = false; },
  openProj(d){ S.active = d.id; VIEW = "proyecto"; window.scrollTo(0,0); },
  pickFolder(){ pickFolder(); return "noop"; },
@@ -1733,6 +1767,7 @@ document.addEventListener("change", e=>{
  const el = e.target;
  if (el.id==="projSel"){ S.active = el.value; commit(); return; }
  if (el.id==="projF"){ V._pf = el.value; render(); return; }
+ if (el.dataset.fac){ const v = parseFloat(el.value); if (!isNaN(v)){ proj().labor.factor = v; proj().updated = Date.now(); commit(); } return; }
  if (el.dataset.lict){ const [i,k] = el.dataset.lict.split("|"); if (el.value){ (S.licRules[+i][k] ||= []).push(el.value); commit(); } return; }
  if (el.dataset.status){ const P = proj(); if (P.status !== el.value){ P.status = el.value; P.updated = Date.now(); if (el.value==="aprobada") P.approvedAt = Date.now(); if (el.value!=="perdida"){} (P.log = P.log||[]).unshift({at:Date.now(), text:"Estado cambiado a "+stInfo(el.value)[1]}); snapshot(P, "Estado: "+stInfo(el.value)[1], true); commit(); toast("Estado actualizado y versión guardada"); } return; }
  if (el.dataset.actOff){ const P = proj(); if (el.checked) delete P.moff[el.dataset.actOff]; else P.moff[el.dataset.actOff] = true; commit(); return; }
